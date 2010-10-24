@@ -15,9 +15,9 @@ Diaspora::Application.routes.draw do
                                       :invitations    => "invitations"}
   
   #mtreece added for updates on login
-  match 'updates',      :to => 'updates#get_updates'
+  match 'updates',                 :to => 'updates#get_updates' 
   
-  # added public route to user
+  # added public route to user 
   match 'public/:username',        :to => 'users#public'
   match 'users/export',            :to => 'users#export'
   match 'users/import',            :to => 'users#import'

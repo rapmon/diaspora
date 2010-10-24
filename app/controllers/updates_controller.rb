@@ -11,13 +11,19 @@ class UpdatesController < ApplicationController
 
   before_filter :authenticate_user!, :except => [:new, :create, :public, :import]
 
-  respond_to :html
+  # respond_to :html
 
-  def get_updates
+  def get_updates 
     flash[:notice] = params[:timestamp];
-    
-    redirect_to root_url
-  end
+    # @updates = getHashOfUpdatesSince(:timestamp);
+    @updates = {
+    		:test_symbol => "3",
+    		:data => "data_value",
+    		:passed_timestamp => params[:timestamp],
+    		"my_hash" => {"key1" => "value1", "key2" => "value2"}
+    			}
+    render :xml => @updates
+  end 
 
 
   # everything after this is unneeded -- just copied/pasted for the example
