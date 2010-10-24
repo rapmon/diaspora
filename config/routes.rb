@@ -13,6 +13,10 @@ Diaspora::Application.routes.draw do
   devise_for :users, :controllers => {:registrations => "registrations",
                                       :password      => "devise/passwords",
                                       :invitations    => "invitations"}
+  
+  #mtreece added for updates on login
+  match 'updates',      :to => 'updates#get_updates'
+  
   # added public route to user
   match 'public/:username',        :to => 'users#public'
   match 'users/export',            :to => 'users#export'
