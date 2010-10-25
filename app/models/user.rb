@@ -117,6 +117,23 @@ class User
     end
     false
   end
+  
+  #added by Saurabh 
+  #to check if the person belongs to the post's aspect or not
+  #or to be precise, should the post be delivered to the person
+ def  isPostForPerson?(post, person_id)
+   #first get all aspects for the post
+   @aspects_for_post = Aspect.find_all_by_post_ids(post.id)
+   #now check if the person belongs to any of the aspects
+   @aspects_for_user = Aspect.find_all_by_person_ids(person_id)
+   #check if there is any common aspect
+   for aspect_post in @aspects_for_post do
+     for aspect_user in @aspects_for_user do
+        return true if aspect_post.id == aspect_user.id       
+     end
+   end
+    return false
+ end
 
   def add_person_to_aspect(person_id, aspect_id, opts = {})
     raise "Can not add person to an aspect you do not own" unless aspect = self.aspects.find_by_id(aspect_id) 

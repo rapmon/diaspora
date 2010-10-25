@@ -7,22 +7,27 @@ class UpdatesController < ApplicationController
   require File.join(Rails.root, 'lib/diaspora/exporter')
   require File.join(Rails.root, 'lib/diaspora/importer')
   require File.join(Rails.root, 'lib/collect_user_photos')
-
+  require File.join(Rails.root, 'app/models/user')
 
   before_filter :authenticate_user!, :except => [:new, :create, :public, :import]
 
+  # for now, let us forget the timestamp checking
+  def getHashOfUpdatesSince()
+    @allposts = current_user.visible_posts()
+  end
   # respond_to :html
 
   def get_updates 
     flash[:notice] = params[:timestamp];
+    #let's get the person_id and forget about authentication for a while
+    flash[:notice] = params[:person_id];
     # @updates = getHashOfUpdatesSince(:timestamp);
-    @updates = {
-    		:test_symbol => "3",
-    		:data => "data_value",
-    		:passed_timestamp => params[:timestamp],
-    		"my_hash" => {"key1" => "value1", "key2" => "value2"}
-    			}
-    render :xml => @updates
+    @allposts = getHashOfUpdatesSince()
+    for newpost in @allposts do 
+      #send each post
+      user  = User.new
+      user.push_to_people(newpost, params[:person_id]) if user.isPostForPerson?(newpost, params[:person_id])
+    end
   end 
 
 
