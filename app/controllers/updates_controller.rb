@@ -12,22 +12,22 @@ class UpdatesController < ApplicationController
   before_filter :authenticate_user!, :except => [:new, :create, :public, :import]
 
   # for now, let us forget the timestamp checking
-  def getHashOfUpdatesSince()
-    @allposts = current_user.visible_posts()
+  def getListOfUpdatesSince()
+    current_user.visible_posts
   end
-  # respond_to :html
 
   def get_updates 
-    flash[:notice] = params[:timestamp];
     #let's get the person_id and forget about authentication for a while
-    flash[:notice] = params[:person_id];
     # @updates = getHashOfUpdatesSince(:timestamp);
-    @allposts = getHashOfUpdatesSince()
-    for newpost in @allposts do 
-      #send each post
-      user  = User.new
-      user.push_to_people(newpost, params[:person_id]) if user.isPostForPerson?(newpost, params[:person_id])
-    end
+    allposts = getListOfUpdatesSince()
+    
+    #for newpost in @allposts do 
+    #  #send each post
+    #  current_user.push_to_people(newpost, User.find_by_id(params[:person_id]).person ) if current_user.isPostForPerson?(newpost, params[:person_id])
+    #end
+    
+    render :json => allposts
+    #render :nothing => true # will render nothing when we want it to...
   end 
 
 
