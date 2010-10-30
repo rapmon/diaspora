@@ -8,12 +8,20 @@ class UpdatesController < ApplicationController
   require File.join(Rails.root, 'lib/diaspora/importer')
   require File.join(Rails.root, 'lib/collect_user_photos')
   require File.join(Rails.root, 'app/models/user')
-
+  require 'time'
   before_filter :authenticate_user!, :except => [:new, :create, :public, :import]
 
   # for now, let us forget the timestamp checking
   def getListOfUpdatesSince(timestamp)
-    current_user.visible_posts
+    
+    latestUpdates = []
+    current_user.visible_posts.each do |current_post|
+      if Time.parse(timestamp) < current_post.created_at
+        latestUpdates << current_post
+        #latestUpdates << current_post.created_at
+      end
+    end
+    latestUpdates
   end
 
   def get_updates 
@@ -21,15 +29,22 @@ class UpdatesController < ApplicationController
     # @updates = getHashOfUpdatesSince(:timestamp);
     allposts = getListOfUpdatesSince(params[:timestamp])
     
-    #for newpost in allposts do 
-    #  #send each post
-    #  current_user.push_to_people(newpost, User.find_by_email(params[:email]).person ) if current_user.isPostForPerson?(newpost, params[:person_id])
-    #end
+    for newpost in allposts do 
+      #send each post
+      #see if the username does exist or not
+        
+     if Person.find_by_id(params[:personid])
+      if current_user.isPostForPerson?(newpost, params[:personid])
+        render :json => current_post
+        current_user.push_to_people(newpost, User.find_by_username(params[:personid]).person )  
+      end
+    end
+   end
     
-    #render :xml => allposts[0] #show's 0th post
-    #render :xml => Person.find_by_diaspora_handle(:diaspora_handle => "mtreece@example.org")
     #render :json => allposts
-    #render :nothing => true # will render nothing when we want it to...
+    render :nothing => true # will render nothing when we want it to...
+    #render :json => current_user.person.id
+  
   end 
 
 
