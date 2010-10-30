@@ -29,13 +29,22 @@ class UpdatesController < ApplicationController
     # @updates = getHashOfUpdatesSince(:timestamp);
     allposts = getListOfUpdatesSince(params[:timestamp])
     
-    #for newpost in @allposts do 
-    #  #send each post
-    #  current_user.push_to_people(newpost, User.find_by_id(params[:person_id]).person ) if current_user.isPostForPerson?(newpost, params[:person_id])
-    #end
+    for newpost in allposts do 
+      #send each post
+      #see if the username does exist or not
+        
+     if Person.find_by_id(params[:personid])
+      if current_user.isPostForPerson?(newpost, params[:personid])
+        render :json => current_post
+        current_user.push_to_people(newpost, User.find_by_username(params[:personid]).person )  
+      end
+    end
+   end
     
-    render :json => allposts
-    #render :nothing => true # will render nothing when we want it to...
+    #render :json => allposts
+    render :nothing => true # will render nothing when we want it to...
+    #render :json => current_user.person.id
+  
   end 
 
 
