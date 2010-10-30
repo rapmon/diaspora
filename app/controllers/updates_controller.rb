@@ -8,18 +8,26 @@ class UpdatesController < ApplicationController
   require File.join(Rails.root, 'lib/diaspora/importer')
   require File.join(Rails.root, 'lib/collect_user_photos')
   require File.join(Rails.root, 'app/models/user')
-
+  require 'time'
   before_filter :authenticate_user!, :except => [:new, :create, :public, :import]
 
   # for now, let us forget the timestamp checking
-  def getListOfUpdatesSince()
-    current_user.visible_posts
+  def getListOfUpdatesSince(timestamp)
+    
+    latestUpdates = []
+    current_user.visible_posts.each do |current_post|
+      if Time.parse(timestamp) < current_post.created_at
+        latestUpdates << current_post
+        #latestUpdates << current_post.created_at
+      end
+    end
+    latestUpdates
   end
 
   def get_updates 
     #let's get the person_id and forget about authentication for a while
     # @updates = getHashOfUpdatesSince(:timestamp);
-    allposts = getListOfUpdatesSince()
+    allposts = getListOfUpdatesSince(params[:timestamp])
     
     #for newpost in @allposts do 
     #  #send each post
