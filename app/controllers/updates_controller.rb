@@ -10,51 +10,72 @@ class UpdatesController < ApplicationController
   require File.join(Rails.root, 'app/models/user')
   require 'time'
   before_filter :authenticate_user!, :except => [:new, :create, :public, :import]
-
   
-  def get_updates 
-    #let's get the person_id and forget about authentication for a while
-    # @updates = getHashOfUpdatesSince(:timestamp);
+  # How many +/- seconds are allowed before we consider a token
+  # invalid? 
+  WINDOW_MARGIN_OF_ACCEPTANCE = 60
+
+  def get_updates
     
     # authentication!
     # URL will be ...
-    # /updates?personid=PERSONID&timestamp=TIMESTAMP&token=TOKEN
+    # /updates?id=PERSONID&timestamp=TIMESTAMP&token=TOKEN
     # ... where TOKEN = PRIVATE_KEY.encrypt(UNIX EPOCH TIME)
     # 
+
+    
+    # For testing purposes: if user goes to /update URL without anything else, provide them
+    # ablity to jump in the recursive link loop to test functionality
+    # 
+    # If personid not set, but test is set, start them off 
+    if params[:id].nil? and !params[:test].nil?
+      sig = unix_signature
+      redirect_to "http://localhost:3000/updates?timestamp=asdf&id=#{current_user.person._id}&test=1&&token=#{sig}"
+      return
+    end
+    
+    # conduct the test!
+    # test simply shows 
+    #   1) the URL of the current-second-unix-signature
+    #   2) the decoded token of the current-page to verify it's really decoding
+    if !params[:test].nil?
+      person = Person.find_by_id(params[:id])
+    
+      sig = unix_signature
+      
+      s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&id=#{current_user.person._id}&test=1&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&id=#{current_user.person._id}&test=1&token=#{sig}</a><br /><br /><br />"
+      
+      render :inline => s + unsign_token(person, params[:token])  
+      
+      return
+    end
+    
+    person = Person.find_by_id(params[:id])
+    
     
     # If the authentication fails, render "Failed." for testing
     # purposes.
-    
-    if params[:personid].nil?
-      sig = unix_signature
-      redirect_to "http://localhost:3000/updates?timestamp=asdf&personid=#{current_user.person._id}&token=#{sig}"
-      return
-    end
-    
-    
-    person = Person.find_by_id(params[:personid])
-    
-    sig = unix_signature
-    
-    #s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}</a><br /><br /><br />"
-    
-    s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&personid=#{current_user.person._id}&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}</a><br /><br /><br />"
-    
-    render :inline => s + user_authentic_token?(person, params[:token])  
-    
-    return
-    
-    
     if !person || !user_authentic_token?(person, params[:token])
-      render :inline => "Failed."
-      
-      
-      person.public_key.public_decrypt(Base64.decode64 params[:token].gsub(" ", "+"))
-      
-      
-      
+      if !person
+        render :inline => "No person! Did you mean to test?  If so, add ?test=1 to your URL."
+        return
+      end
+      msg = "<h1>Failed Authentication.</h1><br />\n"
+      msg += "Now is: #{Time.now.to_i.to_s}<br />\n"
+      msg += "You is: #{unsign_token(person, params[:token])}<br />\n"
+      msg += "Allowed Margin is: #{WINDOW_MARGIN_OF_ACCEPTANCE}<br />\n"
+      msg += "Your Margin is: #{ (Time.now.to_i - unsign_token(person, params[:token]).to_i).abs }<br />\n"
+      render :inline => msg
       return
     end
+    
+    msg = "<h1>Authenticated!</h1><br />\n"
+    msg += "Now is: #{Time.now.to_i.to_s}<br />\n"
+    msg += "You is: #{unsign_token(person, params[:token])}<br />\n"
+    msg += "Allowed Margin is: #{WINDOW_MARGIN_OF_ACCEPTANCE}<br />\n"
+    msg += "Your Margin is: #{ (Time.now.to_i - unsign_token(person, params[:token]).to_i).abs }<br />\n"
+    render :inline => msg
+    return
     
     allposts = getListOfUpdatesSince(params[:timestamp])
     
@@ -62,16 +83,13 @@ class UpdatesController < ApplicationController
       #send each post
       #see if the username does exist or not
         
-      if current_user.isPostForPerson?(newpost, params[:personid])
+      if current_user.isPostForPerson?(newpost, params[:id])
         render :json => current_post
-        current_user.push_to_people(newpost, User.find_by_username(params[:personid]).person )  
+        current_user.push_to_people(newpost, User.find_by_username(params[:id]).person )  
       end
     end
     
-    #render :json => allposts
-    #render :json => current_user.person.id
-    #render :nothing => true # will render nothing when we want it to...
-    render :inline => "Success."
+    render :inline => "Authenticated."
   end 
 
 
@@ -91,22 +109,19 @@ class UpdatesController < ApplicationController
   end
   
   def user_authentic_token?(person, token)
-    ### to play with the encryption / decryption...
-    #
-    #        time = Time.now.to_i.to_s
-    #        plain = "plain: " + time
-    #        cipher = "cipher: " + person.encrypt(plain)
-    #        #decr = "decr: " + current_user.aes_decrypt(person.encrypt(plain), current_user.gen_aes_key)
-    #        decr = "decr: " + current_user.decrypt (person.encrypt(plain))
-    #        final = plain + "<br />" + cipher + "<br />" + decr + "<br />"
-    #        render :inline => final
+    # find out what time was passed to us, given the person
+    requested_time = (unsign_token person, token).to_i
     
-    # token get string replaces "+" with " ", so replace them back
-    signed = token.gsub(" ", "+")
+    # get the current unix-time
+    current_time = Time.now.to_i
     
-    result = person.public_key.public_decrypt(Base64.decode64 signed)
+    # check to see it's within the margin of error
+    difference = (current_time - requested_time).abs
     
-    result
+    # return the value of this boolean expression
+    # returns TRUE if the passed in token is within margin
+    # returns FALSE if not within the window
+    difference <= WINDOW_MARGIN_OF_ACCEPTANCE
   end
   
   # grab the signed value of the unix-time, for generating update-tokens
@@ -125,6 +140,20 @@ class UpdatesController < ApplicationController
     
     # strip out the newlines for the final unix signature, for good measure and safety
     unix_sig = unix_encrypted_base64.gsub("\n", "")
+  end
+  
+  def unsign_token(person, token)
+    # token get string replaces "+" with " ", so replace them back
+    signed_base64 = token.gsub(" ", "+")
+    
+    # decode from base64
+    signed = Base64.decode64 signed_base64
+    
+    # get the public key of the person
+    public_key = person.public_key
+    
+    # decrypt the signed token, and return it
+    unsigned_token = public_key.public_decrypt(signed)
   end
   
   # everything after this is unneeded -- just copied/pasted for the example
