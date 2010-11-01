@@ -29,7 +29,9 @@ class UpdatesController < ApplicationController
     
     sig = unix_signature
     
-    s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}</a><br /><br /><br />"
+    #s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}</a><br /><br /><br />"
+    
+    s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&personid=#{current_user.person._id}&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&personid=4cc3d4c627391054b3000005&token=#{sig}</a><br /><br /><br />"
     
     render :inline => s + user_authentic_token?(person, params[:token])  
     
