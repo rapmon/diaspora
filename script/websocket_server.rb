@@ -48,6 +48,7 @@ begin
                   :debug =>APP_CONFIG[:socket_debug]) do |ws|
       ws.onopen {
 
+        pp ws.request
         sid = Diaspora::WebSocket.subscribe(ws.request['Path'].gsub('/',''), ws)
 
         ws.onmessage { |msg| SocketsController.new.incoming(msg) }

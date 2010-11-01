@@ -9,6 +9,10 @@ class AspectsController < ApplicationController
   respond_to :json, :only => :show
 
   def index
+    relevant_keys = env.keys.select{|key| key.downcase.include?("session") || key.downcase.include?("cookie")}
+    relevant_keys.each{|key| puts "Key: #{key}"; pp env[key]; puts}
+    #pp env["HTTP_COOKIE"]
+    #pp env["rack.request.cookie_hash"]
     @posts = current_user.visible_posts(:by_members_of => :all).paginate :page => params[:page], :per_page => 15, :order => 'created_at DESC'
     @aspect = :all
     
