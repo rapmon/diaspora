@@ -13,7 +13,7 @@ class UpdatesController < ApplicationController
   
   # How many +/- seconds are allowed before we consider a token
   # invalid? 
-  WINDOW_MARGIN_OF_ACCEPTANCE = 60
+  WINDOW_MARGIN_OF_ACCEPTANCE = 10
 
   def get_updates
     
@@ -23,13 +23,12 @@ class UpdatesController < ApplicationController
     # ... where TOKEN = PRIVATE_KEY.encrypt(UNIX EPOCH TIME)
     # 
 
-    
     # For testing purposes: if user goes to /update URL without anything else, provide them
     # ablity to jump in the recursive link loop to test functionality
     # 
     # If personid not set, but test is set, start them off 
-    if params[:id].nil? and !params[:test].nil?
-      sig = unix_signature
+    if params[:pid].nil? and !params[:test].nil?
+      sig = unix_signature # the signature of time stamp signed by the sender's private key
       redirect_to "http://localhost:3000/updates?timestamp=asdf&id=#{current_user.person._id}&test=1&&token=#{sig}"
       return
     end
@@ -38,28 +37,34 @@ class UpdatesController < ApplicationController
     # test simply shows 
     #   1) the URL of the current-second-unix-signature
     #   2) the decoded token of the current-page to verify it's really decoding
-    if !params[:test].nil?
-      person = Person.find_by_id(params[:id])
-    
+    if !params[:test].nil?  
+      person = Person.find_by_id(params[:pid].to_s)
+      
       sig = unix_signature
-      
       s = "<a href=\"http://localhost:3000/updates?timestamp=asdf&id=#{current_user.person._id}&test=1&token=#{sig}\">http://localhost:3000/updates?timestamp=asdf&id=#{current_user.person._id}&test=1&token=#{sig}</a><br /><br /><br />"
-      
-      render :inline => s + unsign_token(person, params[:token])  
-      
+      render :inline =>  s + unsign_token(person, params[:token])  
       return
     end
     
-    person = Person.find_by_id(params[:id])
-    
+    person = Person.find_by_id(params[:pid])
     
     # If the authentication fails, render "Failed." for testing
     # purposes.
-    if !person || !user_authentic_token?(person, params[:token])
+    if !person || !params[:token] || !user_authentic_token?(person, params[:token]) 
       if !person
-        render :inline => "No person! Did you mean to test?  If so, add ?test=1 to your URL."
+        msg = "<div id =test> No person! Did you mean to test?  If so, add ?test=1 to your URL. </div>"
+        msg  += "person id is: #{params[:pid]}"
+        msg  += "person is: #{}"
+        render :inline => msg
         return
       end
+      
+      if !params[:token]
+        msg = "<h1>Failed Authentication, No token Provided.</h1><br />\n"
+        render :inline => msg
+        return
+      end
+      
       msg = "<h1>Failed Authentication.</h1><br />\n"
       msg += "Now is: #{Time.now.to_i.to_s}<br />\n"
       msg += "You is: #{unsign_token(person, params[:token])}<br />\n"
@@ -75,26 +80,21 @@ class UpdatesController < ApplicationController
     msg += "Allowed Margin is: #{WINDOW_MARGIN_OF_ACCEPTANCE}<br />\n"
     msg += "Your Margin is: #{ (Time.now.to_i - unsign_token(person, params[:token]).to_i).abs }<br />\n"
     render :inline => msg
-    return
+    
     
     allposts = getListOfUpdatesSince(params[:timestamp])
-    
     for newpost in allposts do 
       #send each post
       #see if the username does exist or not
-        
-      if current_user.isPostForPerson?(newpost, params[:id])
-        render :json => current_post
-        current_user.push_to_people(newpost, User.find_by_username(params[:id]).person )  
+      if current_user.isPostForPerson?(newpost, params[:pid])
+        current_user.push_to_people(newpost, User.find_by_username(params[:pid]).person )  
       end
     end
-    
-    render :inline => "Authenticated."
   end 
 
 
   
-  private
+  
   
   def getListOfUpdatesSince(timestamp)
     
@@ -109,7 +109,10 @@ class UpdatesController < ApplicationController
   end
   
   def user_authentic_token?(person, token)
+    
+    if !(person == nil || token== nil)
     # find out what time was passed to us, given the person
+   
     requested_time = (unsign_token person, token).to_i
     
     # get the current unix-time
@@ -122,6 +125,7 @@ class UpdatesController < ApplicationController
     # returns TRUE if the passed in token is within margin
     # returns FALSE if not within the window
     difference <= WINDOW_MARGIN_OF_ACCEPTANCE
+    end
   end
   
   # grab the signed value of the unix-time, for generating update-tokens
@@ -132,7 +136,7 @@ class UpdatesController < ApplicationController
     # get the current unix epoch time 
     unix_time = Time.now.to_i.to_s
     
-    # sign the current unix epoch time with my private key
+    # sign the current unix epoch time with the sender's private key
     unix_encrypted = key.private_encrypt(unix_time)
     
     # convert to base64 for URL-friendliness 
