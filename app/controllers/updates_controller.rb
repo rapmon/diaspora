@@ -25,6 +25,13 @@ class UpdatesController < ApplicationController
     # If the authentication fails, render "Failed." for testing
     # purposes.
     
+    if params[:personid].nil?
+      sig = unix_signature
+      redirect_to "http://localhost:3000/updates?timestamp=asdf&personid=#{current_user.person._id}&token=#{sig}"
+      return
+    end
+    
+    
     person = Person.find_by_id(params[:personid])
     
     sig = unix_signature
