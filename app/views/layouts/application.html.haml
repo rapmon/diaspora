@@ -47,6 +47,9 @@
           %span.sub_text
             PREVIEW
 
+        #global_sync{:class => 'button'}
+          = link_to "Sync Updates", "/updates/grab"
+
         #global_search
           = form_tag(people_path, :method => 'get') do
             = text_field_tag 'q', nil, :placeholder => "Search", :type => 'search', :results => 5
