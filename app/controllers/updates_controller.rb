@@ -118,10 +118,10 @@ class UpdatesController < ApplicationController
     friends = current_user.friends
     html_response = ""
     big_string = ""
+    last_timestamp = get_timestamp_of_last_post
     friends.each do | friend | 
-      last_timestamp = get_timestamp_of_last_post_by(friend)
       get_string = "#{friend.url}updates"
-      get_string += "?timestamp=#{get_timestamp_of_last_post_by(friend)}"
+      get_string += "?timestamp=#{last_timestamp}"
       get_string += "&id=#{current_user.person._id}"
       get_string += "&token=#{unix_signature()}"
       big_string += get_string + "<br />\n<br />\n<br />\n"
@@ -200,7 +200,7 @@ class UpdatesController < ApplicationController
     unsigned_token = public_key.public_decrypt(signed)
   end
   
-  def get_timestamp_of_last_post_by(person)
+  def get_timestamp_of_last_post
     # need to refactor this for performance
     
     aspect = current_user.aspects(:all)
