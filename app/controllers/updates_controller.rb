@@ -6,6 +6,10 @@ class UpdatesController < ApplicationController
   require File.join(Rails.root, 'app/models/user')
   require 'time'
   
+  # these requires are for making remote-server GET, POST requests
+  require "uri"
+  require "net/http"
+  
   # filter-authentication if doing /updates/grab
   before_filter :authenticate_user!, :only => [:grab]
 
@@ -106,15 +110,31 @@ class UpdatesController < ApplicationController
     ## pseudocode of course...
     # friends = getAllFriends();
     # friends.each do | friend |
-    # last_post_timestamp = getTimestampOfLastPostWeHaveFrom(friend);
-    # html_response = http_get("http://#{friend.server_url}/updates"
-    #                        + "?timestamp=#{last_post_timestamp}"
-    #                        + "&id=#{current_user.person._id}"     ## NOTE: here, we *DO* use current_user
-    #                        + "&token=#{unix_signature()}");       ##       b/c we're telling friend about ourselves
+    #   last_post_timestamp = getTimestampOfLastPostWeHaveFrom(friend);
+    #   html_response = http_get("http://#{friend.server_url}/updates"
+    #                          + "?timestamp=#{last_post_timestamp}"
+    #                          + "&id=#{current_user.person._id}"     ## NOTE: here, we *DO* use current_user
+    #                          + "&token=#{unix_signature()}");       ##       b/c we're telling friend about ourselves
+    # end
     
-    friends = nil
+    friends = current_user.friends
+    html_response = ""
+    big_string = ""
+    friends.each do | friend | 
+      last_timestamp = get_timestamp_of_last_post_by(friend)
+      get_string = "#{friend.url}updates"
+      get_string += "?timestamp=#{get_timestamp_of_last_post_by(friend)}"
+      get_string += "&id=#{current_user.person._id}"
+      get_string += "&token=#{unix_signature()}"
+      big_string += get_string + "<br />\n<br />\n<br />\n"
+      big_string = "#{ friend.diaspora_handle }, => <br />\n" + big_string
+      #html_response = Net::HTTP.get(URI.parse(get_string))
+    end
     
-    flash[:notice] = "Not yet implemented -- we're working on it!"
+    render :inline => big_string
+    return
+    
+    flash[:notice] = "Updates processing."
     redirect_to root_url
   end  
   
@@ -180,6 +200,26 @@ class UpdatesController < ApplicationController
     
     # decrypt the signed token, and return it
     unsigned_token = public_key.public_decrypt(signed)
+  end
+  
+  def get_timestamp_of_last_post_by(person)
+    # need to refactor this for performance
+    
+    aspect = current_user.aspects(:all)
+    
+    recent_post_time = nil
+    
+    all_posts = []
+    
+    aspect.each do | a |
+      a.posts.each do | p |
+        if recent_post_time.nil? or p.created_at > recent_post_time
+          recent_post_time = p.created_at
+        end
+      end
+    end
+    
+    recent_post_time
   end
 
 end
