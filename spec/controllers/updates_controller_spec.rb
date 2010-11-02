@@ -166,7 +166,7 @@ end
    end
    
    #after this, the user user2 should have 1 post in its visible posts
-    @user2.visible_posts.count.should eq(1)
+    @user2.aspects[0].posts.count.should eq(1)
    
    
   end
