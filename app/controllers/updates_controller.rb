@@ -200,8 +200,6 @@ class UpdatesController < ApplicationController
     unsigned_token = public_key.public_decrypt(signed)
   end
   
-  private
-  
   def get_timestamp_of_last_post_by(person)
     # need to refactor this for performance
     
