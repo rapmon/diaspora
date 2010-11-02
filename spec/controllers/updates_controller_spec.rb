@@ -133,7 +133,7 @@ end
        #simulating user2 requesting
        
        #sleep to expire the timestamp
-      sleep 15
+    #  sleep  15
       friends = @user2.friends
       html_response = ""
       big_string = ""
@@ -163,10 +163,11 @@ end
      friends.each do | friend | 
        @params  = {:pid  => @user2.person._id,:token => unix_sig, :timestamp => recent_post_time }  
        get dummyUrl, @params    
-   end
+     end
    
    #after this, the user user2 should have 1 post in its visible posts
-    @user2.aspects[0].posts.count.should eq(1)
+sleep 5
+    @user2.aspects[0].posts.size.should eq(1)
    
    
   end
