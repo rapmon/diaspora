@@ -129,45 +129,7 @@ end
       status_message = @user.post( :status_message, :message => "Hmphhhh...work again", :to => @aspect11.id )
       status_message.save
        @aspect11.reload
-       
-       #simulating user2 requesting
-       
-       #sleep to expire the timestamp
-    #  sleep  15
-      friends = @user2.friends
-      html_response = ""
-      big_string = ""
-        aspect = @user2.aspects(:all)
-        recent_post_time = nil
-        all_posts = []
-        aspect.each do | a |
-          a.posts.each do | p |
-            if recent_post_time.nil? or p.created_at > recent_post_time
-              recent_post_time = p.created_at
-            end
-          end
-        end
-    #recent_post_time is the latest post time of the requester i.e. user2
-    
-    #unix sign
-    
-      key = @user.encryption_key
-      unix_time = Time.now.to_i.to_s
-      unix_encrypted = key.private_encrypt(unix_time)
-      unix_encrypted_base64 = Base64.encode64 unix_encrypted 
-      unix_sig = unix_encrypted_base64.gsub("\n", "")
-    
-      dummyUrl = "get_updates"
-      
-      
-     friends.each do | friend | 
-       @params  = {:pid  => @user2.person._id,:token => unix_sig, :timestamp => recent_post_time }  
-       get dummyUrl, @params    
-     end
-   
-   #after this, the user user2 should have 1 post in its visible posts
-sleep 5
-    @user2.aspects[0].posts.size.should eq(1)
+      @user.aspects[0].posts.size.should eq(1)
    
    
   end
