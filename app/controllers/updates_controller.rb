@@ -78,17 +78,24 @@ class UpdatesController < ApplicationController
     msg += "You is: #{unsign_token(person, params[:token])}<br />\n"
     msg += "Allowed Margin is: #{WINDOW_MARGIN_OF_ACCEPTANCE}<br />\n"
     msg += "Your Margin is: #{ (Time.now.to_i - unsign_token(person, params[:token]).to_i).abs }<br />\n"
-    render :inline => msg
+   # render :inline => msg
     
     
     allposts = getListOfUpdatesSince(params[:timestamp])
+    
+    count = 0
+    users_sent_to = []
     for newpost in allposts do 
       #send each post
       #see if the username does exist or not
       if current_user.isPostForPerson?(newpost, params[:pid])
-        current_user.push_to_people(newpost, User.find_by_username(params[:pid]).person )  
+        current_user.push_to_people(newpost, User.find_by_username(params[:pid]).person )
+        users_sent_to << params[:pid]
+        count = count + 1
       end
     end
+    
+    render :inline => "Authenticated!" + count.to_s #users_sent_to[0].to_s
   end 
 
 

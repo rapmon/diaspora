@@ -7,10 +7,24 @@ require 'spec_helper'
 describe UpdatesController do
   
   before do
-    @user = Factory.create(:user)
-    @user.aspect(:name => "lame-os")
+    @user    = Factory.create(:user)
+    @aspect11  = @user.aspect(:name => "Work1")
+    @aspect12 = @user.aspect(:name => "Fun1")
+    
+    @user2   = Factory.create(:user)
+    @aspect21 = @user2.aspect(:name => "Work2")
+    
+    @user3 =   Factory.create(:user)
+    @aspect31 = @user3.aspect(:name => "Fun3")
+       
+    friend_users(@user,@aspect11, @user2, @aspect21)  #users 1 and 2 related by work
+    friend_users(@user,@aspect12, @user3, @aspect31)  #users 1 and 3 related by fun
     sign_in :user, @user
+     sign_in :user, @user2
+      sign_in :user, @user3
   end
+  
+ 
   
   
   describe 'user updating without an id or token should not be allowed' do
@@ -34,7 +48,8 @@ describe UpdatesController do
   end
   
   
-  describe 'user with valid token and valid person id should be authenticated. ' do
+  describe 'user with valid token and valid person id should be authenticated and posts should
+     be sent to correct users . ' do
     it 'should authenticate user' do
       
       key = @user.encryption_key
@@ -47,7 +62,33 @@ describe UpdatesController do
       @params  = {:pid  => @user.person.id,:token => unix_sig }  
        get dummyUrl, @params
        response.body.should match(/Authenticated!/i)
-    end
+   end
+   
+   it 'should sent posts to correct users' do
+    
+      #user1 posts in Work aspect 
+      status_message = @user.post( :status_message, :message => "This is work related", :to => @aspect11.id )
+      
+      @user2.receive   status_message.to_diaspora_xml, @user.person
+      @user3.receive   status_message.to_diaspora_xml, @user.person
+      
+      
+      @aspect11.reload
+      
+      key = @user.encryption_key
+      unix_time = Time.now.to_i.to_s
+      unix_encrypted = key.private_encrypt(unix_time)
+      unix_encrypted_base64 = Base64.encode64 unix_encrypted 
+      unix_sig = unix_encrypted_base64.gsub("\n", "")
+      
+      dummyUrl = "get_updates"
+      @params  = {:pid  => @user2.person.id,:token => unix_sig, :timestamp => "2009-10-16T19:45:35Z" }  
+       get dummyUrl, @params
+       
+       #now user2 should have got it
+       response.body.should match(/#{@user2.id}/)
+     
+   end
   end
   
   describe 'user with expired token and valid person id should not be authenticated. ' do
