@@ -88,14 +88,16 @@ class UpdatesController < ApplicationController
     for newpost in allposts do 
       #send each post
       #see if the username does exist or not
+        wrapper_post_array = []
+        wrapper_post_array << newpost
       if current_user.isPostForPerson?(newpost, params[:pid])
-        current_user.push_to_people(newpost, User.find_by_username(params[:pid]).person )
+        current_user.push_to_people(wrapper_post_array, User.find_by_username(params[:pid]).person )
         users_sent_to << params[:pid]
         count = count + 1
       end
     end
     
-    render :inline => "Authenticated!" + count.to_s #users_sent_to[0].to_s
+    render :inline => "Authenticated!" + count.to_s  + " all post count is: #{current_user.person.id}"+" timestamp is: #{params[:timestamp]}"+ "  total posts in bank = #{allposts.count}"#users_sent_to[0].to_s
   end 
 
 

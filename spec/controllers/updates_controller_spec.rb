@@ -20,8 +20,8 @@ describe UpdatesController do
     friend_users(@user,@aspect11, @user2, @aspect21)  #users 1 and 2 related by work
     friend_users(@user,@aspect12, @user3, @aspect31)  #users 1 and 3 related by fun
     sign_in :user, @user
-     sign_in :user, @user2
-      sign_in :user, @user3
+    sign_in :user, @user2
+     
   end
   
  
@@ -57,21 +57,26 @@ describe UpdatesController do
       unix_encrypted = key.private_encrypt(unix_time)
       unix_encrypted_base64 = Base64.encode64 unix_encrypted 
       unix_sig = unix_encrypted_base64.gsub("\n", "")
-      
+       sign_in :user, @user3
       dummyUrl = "get_updates"
       @params  = {:pid  => @user.person.id,:token => unix_sig }  
        get dummyUrl, @params
        response.body.should match(/Authenticated!/i)
    end
    
+   it 'should post' do
+     status_message = @user.post( :status_message, :message => "This is work related", :to => @aspect11.id )
+     @user.visible_posts.count.should eq(1)
+     
+   end
+   
    it 'should sent posts to correct users' do
     
       #user1 posts in Work aspect 
       status_message = @user.post( :status_message, :message => "This is work related", :to => @aspect11.id )
-      
-      @user2.receive   status_message.to_diaspora_xml, @user.person
-      @user3.receive   status_message.to_diaspora_xml, @user.person
-      
+      status_message.save
+#      @user2.receive   status_message.to_diaspora_xml, @user.person
+ #     @user3.receive   status_message.to_diaspora_xml, @user.person
       
       @aspect11.reload
       
@@ -82,13 +87,39 @@ describe UpdatesController do
       unix_sig = unix_encrypted_base64.gsub("\n", "")
       
       dummyUrl = "get_updates"
-      @params  = {:pid  => @user2.person.id,:token => unix_sig, :timestamp => "2009-10-16T19:45:35Z" }  
-       get dummyUrl, @params
+      @params  = {:pid  => @user2.person.id,:token => unix_sig, :timestamp => "2007-10-16T19:45:35Z" }  
+       get dummyUrl, @params    
        
        #now user2 should have got it
-       response.body.should match(/#{@user2.id}/)
-     
+       response.body.should match(/#{@user2.person.id}/)
    end
+   
+   
+   it 'should not send posts to incorrect users/aspects' do
+    
+      #user1 posts in Work aspect 
+      status_message = @user.post( :status_message, :message => "This is work related", :to => @aspect11.id )
+      status_message.save
+#      @user2.receive   status_message.to_diaspora_xml, @user.person
+ #     @user3.receive   status_message.to_diaspora_xml, @user.person
+      
+      @aspect11.reload
+      
+      key = @user.encryption_key
+      unix_time = Time.now.to_i.to_s
+      unix_encrypted = key.private_encrypt(unix_time)
+      unix_encrypted_base64 = Base64.encode64 unix_encrypted 
+      unix_sig = unix_encrypted_base64.gsub("\n", "")
+      
+      dummyUrl = "get_updates"
+     
+      @params  = {:pid  => @user3.person.id,:token => unix_sig, :timestamp => "2007-10-16T19:45:35Z" }  
+       get dummyUrl, @params    
+       
+       #now user2 should have got it
+       response.body.should_not match(/#{@user3.person.id}/)
+   end
+   
   end
   
   describe 'user with expired token and valid person id should not be authenticated. ' do
