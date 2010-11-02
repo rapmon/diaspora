@@ -103,7 +103,10 @@ class UpdatesController < ApplicationController
     #                        + "&id=#{current_user.person._id}"     ## NOTE: here, we *DO* use current_user
     #                        + "&token=#{unix_signature()}");       ##       b/c we're telling friend about ourselves
     
-    friends = nil
+    friends = current_user.friends
+    friends.each do | friend | 
+      last_post_timestamp = nil
+    end
     
     flash[:notice] = "Not yet implemented -- we're working on it!"
     redirect_to root_url
