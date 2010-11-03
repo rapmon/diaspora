@@ -8,8 +8,8 @@ require File.join(Rails.root,  'lib/diaspora/ostatus_builder')
 
 describe Diaspora::OstatusBuilder do
 
-  let!(:user) { Factory(:user) }
-  let(:aspect) { user.aspect(:name => "Public People") }
+  let!(:user) { make_user }
+  let(:aspect) { user.aspects.create(:name => "Public People") }
   let!(:status_message1) { user.post(:status_message, :message => "One", :public => true, :to => aspect.id) }
   let!(:status_message2) { user.post(:status_message, :message => "Two", :public => true, :to => aspect.id) }
   let!(:status_message3) { user.post(:status_message, :message => "Three", :public => false, :to => aspect.id) }

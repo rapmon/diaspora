@@ -9,13 +9,15 @@ class StatusMessagesController < ApplicationController
   respond_to :json, :only => :show
 
   def create
-    data = clean_hash params[:status_message]
+    public_flag = params[:status_message][:public]
+    public_flag.to_s.match(/(true)/) ? public_flag = true : public_flag = false
+    params[:status_message][:public] = public_flag 
 
-    if logged_into_fb? && params[:status_message][:public] == '1'
-      current_user.post_to_message_fb(params[:status_message][:message], @access_token)
+    status_message = current_user.build_post(:status_message, params[:status_message])
+    if status_message.save(:safe => true)
+      raise 'MongoMapper failed to catch a failed save' unless status_message.id
+      current_user.dispatch_post(status_message, :to => params[:status_message][:to])
     end
-
-    @status_message = current_user.post(:status_message, data)
     render :nothing => true
   end
 
@@ -27,19 +29,6 @@ class StatusMessagesController < ApplicationController
 
   def show
     @status_message = current_user.find_visible_post_by_id params[:id]
-    unless @status_message
-      render :status => 404
-    else
-      respond_with @status_message
-    end
-  end
-
-  private
-  def clean_hash(params)
-    return {
-      :message => params[:message],
-      :to      => params[:to],
-      :public  => params[:public]
-    }
+    respond_with @status_message
   end
 end

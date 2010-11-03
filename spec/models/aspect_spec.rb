@@ -5,39 +5,47 @@
 require 'spec_helper'
 
 describe Aspect do
-  let(:user ) { Factory.create(:user) }
+  let(:user ) { make_user }
   let(:friend) { Factory.create(:person) }
-  let(:user2) { Factory.create(:user) }
+  let(:user2) { make_user }
   let(:friend_2) { Factory.create(:person) }
 
-  let(:aspect) {user.aspect(:name => 'losers')}
-  let(:aspect2) {user2.aspect(:name => 'failures')}
-  let(:aspect1) {user.aspect(:name => 'cats')}
+  let(:aspect) {user.aspects.create(:name => 'losers')}
+  let(:aspect2) {user2.aspects.create(:name => 'failures')}
+  let(:aspect1) {user.aspects.create(:name => 'cats')}
   let(:not_friend) { Factory(:person, :diaspora_handle => "not@person.com")}
-  let(:user3) {Factory(:user)}
-  let(:aspect3) {user3.aspect(:name => "lala")}
+  let(:user3) {make_user}
+  let(:aspect3) {user3.aspects.create(:name => "lala")}
 
   describe 'creation' do
-    let(:aspect){user.aspect(:name => 'losers')}
+    let!(:aspect){user.aspects.create(:name => 'losers')}
     it 'should have a name' do
       aspect.name.should == "losers"
     end
 
+    it 'should not allow duplicate names' do
+      lambda {
+        invalid_aspect = user.aspects.create(:name => "losers ")
+      }.should_not change(Aspect, :count)
+    end
+
     it 'should not be creatable with people' do
-      aspect = user.aspect(:name => 'losers', :people => [friend, friend_2])
+      aspect = user.aspects.create(:name => 'losers', :people => [friend, friend_2])
       aspect.people.size.should == 0
     end
 
     it 'should be able to have other users' do
-      aspect.people << user2.person
-      aspect.people.include?(user.person).should be false
-      aspect.people.include?(user2.person).should be true
+      Contact.create(:user => user, :person => user2.person, :aspects => [aspect])
+      aspect.people.first(:person_id => user.person.id).should be_nil
+      aspect.people.first(:person_id => user2.person.id).should_not be_nil
       aspect.people.size.should == 1
     end
 
     it 'should be able to have users and people' do
-      aspect.people << user2.person
-      aspect.people << friend_2
+      contact1 = Contact.create(:user => user, :person => user2.person, :aspects => [aspect])
+      contact2 = Contact.create(:user => user, :person => friend_2, :aspects => [aspect])
+      aspect.people.include?(contact1).should be_true
+      aspect.people.include?(contact2).should be_true
       aspect.save.should be_true
     end
   end
@@ -47,12 +55,12 @@ describe Aspect do
       aspect
     end
     it 'has a unique name for one user' do
-      aspect2 = user.aspect(:name => aspect.name)
+      aspect2 = user.aspects.create(:name => aspect.name)
       aspect2.valid?.should be_false
     end
 
     it 'has no uniqueness between users' do
-      aspect2 = user2.aspect(:name => aspect.name)
+      aspect2 = user2.aspects.create(:name => aspect.name)
       aspect2.valid?.should be_true
     end
   end
@@ -69,12 +77,12 @@ describe Aspect do
     end
 
     it 'should have people' do
-      aspect.people.all.include?(friend).should be true
+      aspect.people.first(:person_id => friend.id).should be_true
       aspect.people.size.should == 1
     end
 
     describe '#aspects_with_person' do
-      let!(:aspect_without_friend) {user.aspect(:name => "Another aspect")}
+      let!(:aspect_without_friend) {user.aspects.create(:name => "Another aspect")}
       it 'should return the aspects with given friend' do
         user.reload
         aspects = user.aspects_with_person(friend)
@@ -87,8 +95,9 @@ describe Aspect do
         user.add_person_to_aspect(friend.id, aspect1.id)
         aspects = user.aspects_with_person(friend)
         aspects.count.should == 2
-        aspects.each{ |asp| asp.people.include?(friend) }
-        aspects.should_not include aspect_without_friend
+        contact = user.contact_for(friend)
+        aspects.each{ |asp| asp.people.include?(contact).should be_true }
+        aspects.include?(aspect_without_friend).should be_false
       end
     end
   end
@@ -96,7 +105,7 @@ describe Aspect do
   describe 'posting' do
 
     it 'should add post to aspect via post method' do
-      aspect = user.aspect(:name => 'losers', :people => [friend])
+      aspect = user.aspects.create(:name => 'losers', :people => [friend])
 
       status_message = user.post( :status_message, :message => "hey", :to => aspect.id )
 
@@ -105,8 +114,8 @@ describe Aspect do
     end
 
     it 'should add post to aspect via receive method' do
-      aspect  = user.aspect(:name => 'losers')
-      aspect2 = user2.aspect(:name => 'winners')
+      aspect  = user.aspects.create(:name => 'losers')
+      aspect2 = user2.aspects.create(:name => 'winners')
       friend_users(user, aspect, user2, aspect2)
 
       message = user2.post(:status_message, :message => "Hey Dude", :to => aspect2.id)
@@ -119,8 +128,8 @@ describe Aspect do
     end
 
     it 'should retract the post from the aspects as well' do
-      aspect  = user.aspect(:name => 'losers')
-      aspect2 = user2.aspect(:name => 'winners')
+      aspect  = user.aspects.create(:name => 'losers')
+      aspect2 = user2.aspects.create(:name => 'winners')
       friend_users(user, aspect, user2, aspect2)
 
       message = user2.post(:status_message, :message => "Hey Dude", :to => aspect2.id)
@@ -140,6 +149,7 @@ describe Aspect do
   end
 
   context "aspect management" do
+    let(:contact){user.contact_for(user2.person)}
     before do
       friend_users(user, aspect, user2, aspect2)
       aspect.reload
@@ -149,10 +159,10 @@ describe Aspect do
 
     describe "#add_person_to_aspect" do
       it 'adds the user to the aspect' do
-        aspect1.people.should_not include user2.person
+        aspect1.people.include?(contact).should be_false 
         user.add_person_to_aspect(user2.person.id, aspect1.id)
         aspect1.reload
-        aspect1.people.should include user2.person
+        aspect1.people.include?(contact).should be_true
       end
 
       it 'raises if its an aspect that the user does not own'do
@@ -172,10 +182,10 @@ describe Aspect do
       it 'deletes a user from the aspect' do
          user.add_person_to_aspect(user2.person.id, aspect1.id)
          user.reload
-         user.aspects.find_by_id(aspect1.id).people.include?(user2.person).should be true
+         aspect1.reload.people.include?(contact).should be true
          user.delete_person_from_aspect(user2.person.id, aspect1.id)
          user.reload
-         user.aspects.find_by_id(aspect1.id).people.include?(user2.person).should be false
+         aspect1.reload.people.include?(contact).should be false
       end
 
       it 'should check to make sure you have the aspect ' do
@@ -189,9 +199,7 @@ describe Aspect do
       let(:message2){user3.post(:status_message, :message => "other post", :to => aspect3.id)}
 
       before do
-        friend_users(user, aspect, user3, aspect3)
         user.receive message.to_diaspora_xml, user2.person
-        user.receive message2.to_diaspora_xml, user3.person
         aspect.reload
         @post_count  = aspect.posts.count
         @post_count1 = aspect1.posts.count
@@ -213,6 +221,8 @@ describe Aspect do
       end
 
       it 'should not delete other peoples posts' do
+        friend_users(user, aspect, user3, aspect3)
+        user.receive message2.to_diaspora_xml, user3.person
         user.delete_person_from_aspect(user2.person.id, aspect.id)
         aspect.reload
         aspect.posts.should == [message2]
@@ -224,24 +234,24 @@ describe Aspect do
           aspect.reload
           aspect1.reload
 
-          aspect.person_ids.include?(user2.person.id).should be false
-          aspect1.people.include?(user2.person).should be true
+          aspect.people.include?(contact).should be_false
+          aspect1.people.include?(contact).should be_true
         end
 
         it "should not move a person who is not a friend" do
           proc{ user.move_friend(:friend_id => friend.id, :from => aspect.id, :to => aspect1.id) }.should raise_error /Can not add person you are not friends with/
           aspect.reload
           aspect1.reload
-          aspect.people.include?(friend).should be false
-          aspect1.people.include?(friend).should be false
+          aspect.people.first(:person_id => friend.id).should be_nil
+          aspect1.people.first(:person_id => friend.id).should be_nil
         end
 
         it "should not move a person to a aspect that's not his" do
           proc {user.move_friend(:friend_id => user2.person.id, :from => aspect.id, :to => aspect2.id )}.should raise_error /Can not add person to an aspect you do not own/
           aspect.reload
           aspect2.reload
-          aspect.people.include?(user2.person).should be true
-          aspect2.people.include?(user2.person).should be false
+          aspect.people.include?(contact).should be true
+          aspect2.people.include?(contact).should be false
         end
 
         it 'should move all posts by that user to the new aspect' do

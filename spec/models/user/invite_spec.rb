@@ -5,12 +5,12 @@
 require 'spec_helper'
 
 describe User do
-  let(:inviter)  {Factory.create :user}
-  let(:aspect)   {inviter.aspect(:name => "awesome")}
-  let(:another_user) {Factory.create :user}
-  let(:wrong_aspect) {another_user.aspect(:name => "super")}
+  let(:inviter)  {make_user}
+  let(:aspect)   {inviter.aspects.create(:name => "awesome")}
+  let(:another_user) {make_user}
+  let(:wrong_aspect) {another_user.aspects.create(:name => "super")}
   let(:inviter_with_3_invites) {Factory.create :user, :invites => 3}
-  let(:aspect2) {inviter_with_3_invites.aspect(:name => "Jersey Girls")}
+  let(:aspect2) {inviter_with_3_invites.aspects.create(:name => "Jersey Girls")}
 
 
   before do
@@ -68,7 +68,7 @@ describe User do
     it 'throws if you try to add someone you"re friends with' do
       friend_users(inviter, aspect, another_user, wrong_aspect)
       inviter.reload
-      proc{inviter.invite_user(:email => another_user.email, :aspect_id => aspect.id)}.should raise_error /You are already friends with this person/
+      proc{inviter.invite_user(:email => another_user.email, :aspect_id => aspect.id)}.should raise_error /You are already friends with that person/
     end
 
     it 'sends a friend request to a user with that email into the aspect' do
@@ -122,11 +122,11 @@ describe User do
       u.pending_requests
       u.pending_requests.count.should == 1
       request = u.pending_requests.first
-      aspect2  = u.aspect(:name => "dudes")
+      aspect2  = u.aspects.create(:name => "dudes")
       u.reload
       inviter
       inviter.receive_salmon(u.salmon(u.accept_friend_request(request.id, aspect2.id)).xml_for(inviter.person))
-      inviter.friends.include?(u.person).should be true
+      inviter.contact_for(u.person).should_not be_nil
     end
   end
 end

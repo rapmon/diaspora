@@ -6,11 +6,10 @@ class Aspect
   include MongoMapper::Document
 
   key :name,        String
-  key :person_ids,  Array
   key :request_ids, Array
   key :post_ids,    Array
 
-  many :people,   :in => :person_ids,  :class_name => 'Person'
+  many :people,   :foreign_key => 'aspect_ids', :class_name => 'Contact'
   many :requests, :in => :request_ids, :class_name => 'Request'
   many :posts,    :in => :post_ids,    :class_name => 'Post'
 
@@ -19,16 +18,20 @@ class Aspect
   validates_presence_of :name
   validates_uniqueness_of :name, :scope => :user_id
   attr_accessible :name
-
+  
+  before_validation do
+    name.strip!
+  end
+  
   timestamps!
 
   def to_s
     name
   end
 
-  def posts_by_person_id( id )
-    id = id.to_id
-    posts.detect{|x| x.person.id == id }
+  def person_objects
+    person_ids = people.map{|x| x.person_id}
+    Person.all(:id.in => person_ids)
   end
 
   def as_json(opts = {})

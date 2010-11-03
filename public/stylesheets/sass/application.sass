@@ -50,7 +50,6 @@ h3
 
   :padding 1em
   
-  :box-shadow 0 1px 2px #333
   :-moz-box-shadow 0 1px 2px #333
   :-webkit-box-shadow 0 1px 2px #333
 
@@ -59,14 +58,16 @@ h3
   
 #flash_notice
   :background
-    :color rgba(127,255,36,0.6)
+    :color rgb(126,240,77)
+    :color rgba(126,240,77,0.98)
   :text
     :shadow 0 1px #6C6
 
 #flash_error,
 #flash_alert
   :background
-    :color rgba(208,49,43,0.85)
+    :color rgb(208,49,43)
+    :color rgba(208,49,43,0.98)
   :border
     :bottom solid 1px #C66
   :text
@@ -103,8 +104,12 @@ header
   :margin -2em
     :bottom 2em
   :color #000
+
   :background
     :color #333
+  :background -webkit-gradient( linear, left bottom, left top, color-stop(0.01, rgb(31,31,31)), color-stop(0.12, rgb(51,51,51)))
+  :background -moz-linear-gradient( center bottom, rgb(31,31,31) 1%, rgb(51,51,51) 12%)
+
   :padding 0
     :top 5px
   :color #CCC
@@ -200,6 +205,16 @@ header
         :display inline
 
   .avatar
+    :-webkit-border-radius 5px
+    :-moz-border-radius 5px
+    :border-radius 5px
+
+  img
+    :-webkit-box-shadow 0 1px 2px #666
+    :-moz-box-shadow 0 1px 2px #666
+
+    :-webkit-border-radius 5px
+    :-moz-border-radius 5px
     :border-radius 5px
 
 
@@ -250,8 +265,11 @@ header
 
   img
     :position absolute
-    :top 8px
+    :top 7px
     :left 0
+
+    :-webkit-box-shadow 0 1px 2px #666
+    :-moz-box-shadow 0 1px 2px #666
 
   h2
     :margin
@@ -265,6 +283,8 @@ header
       :size 14px
 
   .avatar
+    :-webkit-border-radius 5px
+    :-moz-border-radius 5px
     :border-radius 5px
 
 li.message
@@ -281,7 +301,7 @@ li.message
 
   .content
     :margin
-      :top -4px
+      :top 0
     :padding
       :left 65px
 
@@ -326,7 +346,11 @@ li.message
   &.active
     :background
       :color #333
+
+    :-webkit-border-radius 5px 5px 0 0
+    :-moz-border-radius 5px 5px 0 0
     :border-radius 5px 5px 0 0
+
     a
       :color #fff
       :text-shadow none
@@ -391,10 +415,11 @@ li.message
 
 form
   :position relative
-  :font
-    :size 120%
-  :margin 1em
-    :left 0em
+  input,
+  textarea,
+  label
+    :font
+      :size 14px
 
 #user_name
   :margin
@@ -433,11 +458,10 @@ form
         :right 1em
 
 #stream.show
-  div.comments
+  ul.comments
     :display block
-    ul.comment_set
-      :margin
-        :top 0
+    :margin
+      :top 0
   > li
     :border none
     :padding 0
@@ -445,9 +469,8 @@ form
     > li
       :background none
       :border none
-    
 
-#stream div.comments
+#stream ul.comments
   :display none
 
   .avatar
@@ -456,13 +479,17 @@ form
     :margin
       :right 10px
 
+  form
+    :margin
+      :right 12px
+
 input.comment_submit
   :display none
   :margin
     :right -10px
 
 
-ul.comment_set
+ul.comments
   :margin 0
     :top 1em
   :padding 0
@@ -526,9 +553,11 @@ ul.comment_set
 #stream, #profile,
 .comments
   img.person_picture
-    :border-radius 3px
+
     :-webkit-border-radius 3px
     :-moz-border-radius 3px
+    :border-radius 3px
+
     :display inline block
     :height 30px
     :display absolute
@@ -572,9 +601,11 @@ li.message .from .right
 #show_photo
   img
     :max-width 100%
-    :-webkit-box-shadow 0 2px 4px #333
     :border 10px solid #fff
       :bottom 80px solid #fff
+
+    :-webkit-box-shadow 0 2px 4px #333
+    :-moz-box-shadow 0 2px 4px #333
 
     :-webkit-border-radius 3px
     :-moz-border-radius 3px
@@ -594,10 +625,7 @@ li.message .from .right
   h5
     :color #ccc
 
-
-input[type='text'],
-input[type='password'],
-input[type="search"],
+input:not([type='submit']),
 textarea
   :font
     :family 'Arial', 'Helvetica', sans-serif
@@ -608,21 +636,26 @@ textarea
   :border 1px solid #ccc
   :height auto
 
-  :border-radius 5px
   :-webkit-border-radius 5px
   :-moz-border-radius 5px
+  :border-radius 5px
 
+input[type='checkbox']
+  :width auto
 
 .submit_block
   :text
     :align right
-  :font
-    :size 12px
 
 form p
   :position relative
   :padding 0
   :margin 0
+
+form p.checkbox_select
+  label
+    :left 20px
+    :top 0
 
 label
   :font
@@ -639,63 +672,63 @@ label
   :color #999
   :position relative
   :min-height 65px
-  :max-height 90px
   :width 100%
   :margin
     :bottom 10px
-    :top 0px
 
   :border
     :bottom 2px #777 solid
 
   .avatar
-    :float left
+    :position absolute
     :margin
       :right 15px
-    :border-radius 5px
+
     :-webkit-border-radius 5px
     :-moz-border-radius 5px
-
-  p
-    :position absolute
-    :left 0
-    :top 0
+    :border-radius 5px
 
   form
-    :display inline
     :position relative
+    :margin
+      :left 65px
+      :bottom 10px
+    :top 0
 
   textarea
     :height 42px
+    :display block
 
   input[type='text'],
   textarea
-    :width 515px
+    :width 514px
     :margin 0
 
   .options_and_submit
+    :min-height 21px
+    :position relative
     :display none
     :padding
-      :top 63px
-      :bottom 5px
+      :top 8px
+    :margin
+      :bottom -2px
     input[type='submit']
-      :float right
-      :margin
-        :top -4px
+      :position absolute
+      :right 0
+      :top 5px
       :width 75px
+    input
+      :display inline
 
     .public_toggle
-      :position absolute
-      :bottom 8px
-      :width 300px
       :font
         :size smaller
         :style italic
       :display inline
-      :margin
-        :left 62px
 
 #image_picker
+  :margin
+    :top 5px
   .small_photo
     :height 100px
     :position relative
@@ -705,6 +738,8 @@ label
       :bottom 1em
 
     img
+      :-moz-border-radius 3px
+      :-webkit-border-radius 3px
       :border-radius 3px
 
     input[type='checkbox']
@@ -718,6 +753,8 @@ label
 
 /* cycle it! */
 .album
+  :margin
+    :right 3px
   :position relative
   :height 200px
   :width 200px
@@ -794,7 +831,7 @@ h1.big_text
     :top 1px solid #999
     :bottom 2px solid #eee
 
-.show_post_comments ul.comment_set
+.show_post_comments ul.comments
   :width 100%
 
 .sub_header
@@ -847,6 +884,7 @@ h1.big_text
       a
         :-webkit-border-radius 5px 5px 0 0 
         :-moz-border-radius 5px 5px 0 0 
+        :border-radius 5px 5px 0 0 
 
         :text-shadow 0 1px 0 #444
         :line
@@ -854,6 +892,9 @@ h1.big_text
 
         :padding 4px 10px
         :color #CCC
+
+        :background
+          :color #222
 
         &:hover
           :background
@@ -870,7 +911,7 @@ h1.big_text
         :font
           :weight bold
         :background
-          :color rgba(252,252,252,1)
+          :color rgb(252,252,252)
 
         :color #444
         &:hover
@@ -985,8 +1026,13 @@ h1.big_text
     img
       :height 70px
       :width 70px
-      :border-radius 5px
+
       :-webkit-box-shadow 0 1px 2px #999
+      :-moz-box-shadow 0 1px 2px #999
+
+      :-webkit-border-radius 5px
+      :-moz-border-radius 5px
+      :border-radius 5px
 
     &:hover
       .delete
@@ -1026,6 +1072,7 @@ h1.big_text
         :border-radius 20px
 
         :-webkit-box-shadow 0 1px 3px #000
+        :-moz-box-shadow 0 1px 3px #000
 
       .x
         :z-index 2
@@ -1081,14 +1128,8 @@ ul#settings_nav
     :height 30px
 
 .friend_pictures.horizontal
-  :display inline
-  :margin
-    :left 20px
-
   img
-    :width 30px
-    :height 30px
-    :margin-right -4px
+    :margin-right -5px
 
 #thumbnails
   :line-height 14px
@@ -1098,6 +1139,9 @@ ul#settings_nav
   :padding 0
 
 #left_pane
+  h2
+    :font
+      :weight 200
   ul
     :margin 0
     :padding 0
@@ -1115,7 +1159,7 @@ ul#settings_nav
 
 .empty_message
   :margin
-    :bottom 12px
+    :bottom 24px
   :text
     :align center
 
@@ -1127,6 +1171,9 @@ ul#settings_nav
     :bottom 0.7em
 
   :border 2px dashed #FAC421
+
+  :-webkit-border-radius 5px
+  :-moz-border-radius 5px
   :border-radius 5px
 
   .null_arrow
@@ -1136,8 +1183,24 @@ ul#settings_nav
       :size 80px
     :display inline-block
 
+h1,h2,h3,h4
+  .description
+    :font
+      :size 70%
+      :weight 100
+    :color #ccc
+    :margin
+      :top 0.5em
+    
+h2,h3,h4
+  .description
+    :font
+      :size 80%
+      :weight 200
+
 input[type="search"]
   :-webkit-appearance textfield
+  :-moz-appearance textfield
 
 header
   input[type="search"]
@@ -1236,3 +1299,161 @@ ul#breadcrumb
     &:last-child
       &:after
         :content ''
+
+ul.aspects
+  :margin 0
+  :padding 0
+  :list-style none
+  :color #999
+  :font
+    :size 24px
+
+  > li
+    :padding 12px 0
+    :border
+      :bottom 1px solid #eee
+
+    &:hover
+      :background
+        :color #fafafa
+      
+
+  .right
+    :top 12px
+    :right 12px
+
+  .delete
+    :background
+      :color #eee
+    :width 20px
+    :height 20px
+
+    :-webkit-border-radius 10px
+    :-moz-border-radius 10px
+    :border-radius 10px
+
+    :line-height 16px 
+    :text-indent 6px
+    :font-size 16px
+
+.inline
+  :display inline
+
+.floating
+  :position relative
+  :padding 12px
+  :background
+    :color rgb(255,255,255)
+
+  :-webkit-box-shadow 0 1px 3px #333
+  :-moz-box-shadow 0 1px 3px #333
+
+  :-webkit-border-radius 2px
+  :-moz-border-radius 2px
+  :border-radius 2px
+
+  :border
+    :bottom 1px solid #ccc
+    :top 1px solid #fff
+
+  .submit_block
+    :position absolute
+    :bottom 13px
+    :right 12px
+
+  form
+    :display relative
+
+.bottom_notification
+  :position fixed
+  :bottom 0
+  :left 0
+  :width 100%
+  :background
+    :color rgba(16,127,201,0.8)
+
+  :text
+    :align center
+  :font
+    :size 14px
+    :weight bold
+  :color #fff
+  :padding 12px
+    :bottom 10px
+  
+  a
+    :color #fafafa
+    :background
+      :color rgb(16,127,201)
+    :padding 8px
+
+    :-webkit-border-radius 10px
+    :-moz-border-radius 10px
+    :border-radius 10px
+
+    &:hover
+      :background
+        :color #22AAE0
+
+
+.inline_aspect_listing
+  :margin 0
+  :padding 0
+  :list
+    :style none
+  :display inline
+  > li
+    :display inline
+    :font
+      :weight normal
+    
+    &:after
+      :content ", "
+
+    &:last-child
+      &:before
+        :content "and "
+      &:after
+        :content "."
+
+#previous_step
+  :position absolute
+  :left 12px
+  :bottom 12px
+
+#user_photo_uploader
+  .avatar
+    :-webkit-border-radius 5px
+    :-moz-border-radius 5px
+    :border-radius 5px
+
+    :height 100px
+    :width 100px
+
+#publisher_photo_upload
+  :position absolute
+  :display inline
+  :left 600px
+  :top 0
+
+#profile_photo_upload
+  :margin
+    :top 5px
+  :min-height 100px
+  img
+    :position absolute
+    :left 0
+    :height 100px
+    :width 100px
+
+    :-webkit-border-radius 5px
+    :-moz-border-radius 5px
+    :border-radius 5px
+
+    :-webkit-box-shadow 0 1px 2px #666
+    :-moz-box-shadow 0 1px 2px #666
+
+  :padding
+    :left 120px
+
+

@@ -16,6 +16,8 @@ class Album < Post
 
   before_destroy :destroy_photos
 
+  attr_accessible :name
+
   def self.mine_or_friends(friend_param, current_user)
     friend_param ? Album.find_all_by_person_id(current_user.friend_ids) : current_user.person.albums
   end
@@ -28,6 +30,10 @@ class Album < Post
   def next_photo(photo)
     p_photo = self.photos.where(:created_at.gt => photo.created_at).sort(:created_at.asc).first
     p_photo ? p_photo : self.photos.sort(:created_at.desc).last
+  end
+
+  def mutable?
+    true
   end
 
   protected

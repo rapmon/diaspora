@@ -6,16 +6,17 @@
 require 'spec_helper'
 
 describe Diaspora::UserModules::Friending do
-  let(:user) { Factory.create :user }
-  let(:aspect) { user.aspect(:name => 'heroes') }
-  let(:aspect1) { user.aspect(:name => 'other') }
+  let(:user) { make_user }
+  let(:aspect) { user.aspects.create(:name => 'heroes') }
+  let(:aspect1) { user.aspects.create(:name => 'other') }
   let(:friend) { Factory.create(:person) }
 
   let(:person_one) { Factory.create :person }
   let(:person_two) { Factory.create :person }
+  let(:person_three) { Factory.create :person }
 
-  let(:user2) { Factory.create :user }
-  let(:aspect2) { user2.aspect(:name => "aspect two") }
+  let(:user2) { make_user }
+  let(:aspect2) { user2.aspects.create(:name => "aspect two") }
 
   before do
     deliverable = Object.new
@@ -24,8 +25,41 @@ describe Diaspora::UserModules::Friending do
     Notifier.stub!(:request_accepted).and_return(deliverable)
   end
 
+  describe '#contact_for' do
+
+    it 'returns a contact' do
+      contact = Contact.create(:user => user, :person => person_one, :aspects => [aspect])
+      user.friends << contact
+      user.contact_for(person_one).should be_true
+    end
+
+    it 'returns the correct contact' do
+      contact = Contact.create(:user => user, :person => person_one, :aspects => [aspect])
+      user.friends << contact
+
+      contact2 = Contact.create(:user => user, :person => person_two, :aspects => [aspect])
+      user.friends << contact2
+
+      contact3 = Contact.create(:user => user, :person => person_three, :aspects => [aspect])
+      user.friends << contact3
+
+      user.contact_for(person_two).person.should == person_two
+    end
+
+    it 'returns nil for a non-contact' do
+      user.contact_for(person_one).should be_nil
+    end
+
+    it 'returns nil when someone else has contact with the target' do
+      contact = Contact.create(:user => user, :person => person_one, :aspects => [aspect])
+      user.friends << contact
+      user2.contact_for(person_one).should be_nil
+    end
+  end
+
+
   context 'friend requesting' do
-    it "should assign a request to a aspect" do
+    it "should assign a request to a aspect for the user that sent it out" do
       aspect.requests.size.should == 0
 
       user.send_friend_request_to(friend, aspect)
@@ -34,28 +68,63 @@ describe Diaspora::UserModules::Friending do
       aspect.requests.size.should == 1
     end
 
-    it "should be able to accept a pending friend request" do
-      r = Request.instantiate(:to => user.receive_url, :from => friend)
-      r.save
+    describe  '#receive_friend_request' do
+      it 'adds a request to pending if it was not sent by user' do
+        r = Request.instantiate(:to => user.receive_url, :from => friend)
+        r.save
+        user.receive_friend_request(r)
+        user.reload.pending_requests.should include r
+      end
 
-      proc { user.accept_friend_request(r.id, aspect.id) }.should change {
-        Request.for_user(user).all.count }.by(-1)
+      it 'should autoaccept a request the user sent' do
+        request = user.send_friend_request_to(user2.person, aspect)
+        request.reverse_for(user2)
+        proc{user.receive_friend_request(request)}.should change(user.reload.friends, :count).by(1)
+      end
     end
 
-    it 'should be able to ignore a pending friend request' do
-      friend = Factory.create(:person)
-      r = Request.instantiate(:to => user.receive_url, :from => friend)
-      r.save
+    context 'received a friend request' do
 
-      proc { user.ignore_friend_request(r.id) }.should change {
-        Request.for_user(user).count }.by(-1)
+      let(:request_for_user) {Request.instantiate(:to => user.receive_url, :from => friend)}
+      let(:request2_for_user) {Request.instantiate(:to => user.receive_url, :from => person_one)}
+      let(:request_from_myself) {Request.instantiate(:to => user.receive_url, :from => user.person)}
+      before do
+        request_for_user.save
+        user.receive_friend_request(request_for_user)
+        user.receive_friend_request(request2_for_user)
+        user.reload
+      end
+
+      it "should delete an accepted friend request" do
+        proc { user.accept_friend_request(request2_for_user.id, aspect.id) }.should change(
+          user.reload.pending_requests, :count ).by(-1)
+      end
+
+      it 'should be able to ignore a pending friend request' do
+        proc { user.ignore_friend_request(request_for_user.id) }.should change(
+          user.reload.pending_requests, :count ).by(-1)
+      end
+
+      it 'should ignore a friend request from yourself' do
+        
+        user.pending_requests.delete_all
+        user.save
+        request = user.send_friend_request_to(user.person, aspect)
+        request.reverse_for(user)
+        request.aspect_id = nil
+        user.pending_requests.delete_all
+        user.save
+
+        proc { user.receive_friend_request(request) }.should change(
+
+          user.reload.pending_requests, :count ).by(0)
+      end
     end
 
     it 'should not be able to friend request an existing friend' do
-      user.friends << friend
-      user.save
+      friend_users(user, aspect, user2, aspect2)
 
-      proc { user.send_friend_request_to(friend, aspect) }.should raise_error
+      proc { user.send_friend_request_to(user2.person, aspect1) }.should raise_error
     end
 
     it 'should not be able to friend request yourself' do
@@ -99,14 +168,14 @@ describe Diaspora::UserModules::Friending do
           proc {
             user2.accept_friend_request @request_three.id, aspect2.id
           }.should_not change(Person, :count)
-          user2.friends.include?(user.person).should be true
+          user2.contact_for(user.person).should_not be_nil
         end
 
         it 'should not delete the ignored user on the same pod' do
           proc {
             user2.ignore_friend_request @request_three.id
           }.should_not change(Person, :count)
-          user2.friends.include?(user.person).should be false
+          user2.contact_for(user.person).should be_nil
         end
 
         it 'sends an email to the receiving user' do
@@ -115,9 +184,8 @@ describe Diaspora::UserModules::Friending do
           Notifier.should_receive(:new_request).and_return(mail_obj)
           user.receive @req_xml, person_one
         end
-
-
       end
+
       context 'Two users receiving requests from one person' do
         before do
           user.receive @req_xml, person_one
@@ -127,28 +195,28 @@ describe Diaspora::UserModules::Friending do
         describe '#accept_friend_request' do
           it 'should both users should befriend the same person' do
             user.accept_friend_request @request.id, aspect.id
-            user.friends.include?(person_one).should be true
+            user.contact_for(person_one).should_not be_nil
 
             user2.accept_friend_request @request_two.id, aspect2.id
-            user2.friends.include?(person_one).should be true
+            user2.contact_for(person_one).should_not be_nil
           end
 
           it 'should keep the person around if one of the users rejects him' do
             user.accept_friend_request @request.id, aspect.id
-            user.friends.include?(person_one).should be true
+            user.contact_for(person_one).should_not be_nil
 
             user2.ignore_friend_request @request_two.id
-            user2.friends.include?(person_one).should be false
+            user2.contact_for(person_one).should be_nil
           end
         end
 
 
         it 'should keep the person around if the users ignores them' do
           user.ignore_friend_request user.pending_requests.first.id
-          user.friends.include?(person_one).should be false
+          user.contact_for(person_one).should be_nil
 
           user2.ignore_friend_request user2.pending_requests.first.id #@request_two.id
-          user2.friends.include?(person_one).should be false
+          user2.contact_for(person_one).should be_nil
         end
       end
 
@@ -165,25 +233,24 @@ describe Diaspora::UserModules::Friending do
       end
 
       it "keeps the right counts of friends" do
-        user.receive_friend_request @request
+        user.receive @request.to_diaspora_xml, person_one
 
-        person_two.destroy
-        user.pending_requests.size.should be 1
+        user.reload.pending_requests.size.should == 1
         user.friends.size.should be 0
 
-        user.receive_friend_request @request_two
-        user.pending_requests.size.should be 2
+        user.receive @request_two.to_diaspora_xml, person_two
+        user.reload.pending_requests.size.should == 2
         user.friends.size.should be 0
 
         user.accept_friend_request @request.id, aspect.id
-        user.pending_requests.size.should be 1
+        user.reload.pending_requests.size.should == 1
         user.friends.size.should be 1
-        user.friends.include?(person_one).should be true
+        user.contact_for(person_one).should_not be_nil
 
         user.ignore_friend_request @request_two.id
-        user.pending_requests.size.should be 0
+        user.reload.pending_requests.size.should == 0
         user.friends.size.should be 1
-        user.friends.include?(person_two).should be false
+        user.contact_for(person_two).should be_nil
       end
     end
 
@@ -193,8 +260,9 @@ describe Diaspora::UserModules::Friending do
       end
 
       it 'should unfriend the other user on the same seed' do
-        lambda { user2.unfriend user.person }.should change {
-          user2.friends.count }.by(-1)
+        lambda { 
+          user2.unfriend user.person }.should change {
+          user2.reload.friends.count }.by(-1)
         aspect2.reload.people.count.should == 0
       end
 
@@ -206,6 +274,8 @@ describe Diaspora::UserModules::Friending do
 
       it 'should remove the friend from all aspects they are in' do
         user.add_person_to_aspect(user2.person.id, aspect1.id)
+        aspect.reload.people.count.should == 1
+        aspect1.reload.people.count.should == 1
         lambda { user.unfriended_by user2.person }.should change {
           user.friends.count }.by(-1)
         aspect.reload.people.count.should == 0

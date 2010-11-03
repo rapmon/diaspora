@@ -22,6 +22,10 @@
       - else
         - for request in @remote_requests
           %li.person.request{:data=>{:guid=>request.id, :person_id=>request.person.id}}
+            .delete
+              .x
+                X
+              .circle
             = person_image_tag(request.person)
 
   %h3 Remove from Aspect
@@ -48,7 +52,8 @@
             %li!= remove_link(aspect)
 
         %ul.dropzone{:data=>{:aspect_id=>aspect.id}}
-          -for person in aspect.people
+          -for contact in aspect.people
+            -person = contact.person
             %li.person{:data=>{:guid=>person.id, :aspect_id=>aspect.id}}
               .delete
                 .x
@@ -62,6 +67,6 @@
 
           .fancybox_content
             %div{:id => "add_request_pane_#{aspect.id}"}
-              = render "requests/new_request", :aspect => aspect
+              = render "requests/new_request", :aspect => aspect, :manage => true
 
 

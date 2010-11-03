@@ -14,13 +14,18 @@ class AlbumsController < ApplicationController
   end
 
   def create
-    aspect = params[:album][:to]
+   aspects = params[:album][:to]
 
-    data = clean_hash(params[:album])
-
-    @album = current_user.post(:album, data)
-    flash[:notice] = I18n.t 'albums.create.success', :name  => @album.name
-    redirect_to :action => :show, :id => @album.id, :aspect => aspect
+    @album = current_user.build_post(:album, params[:album])
+    if @album.save
+      raise 'MongoMapper failed to catch a failed save' unless @album.id
+      current_user.dispatch_post(@album, :to => aspects)
+      flash[:notice] = I18n.t 'albums.create.success', :name  => @album.name
+      redirect_to :action => :show, :id => @album.id, :aspect =>aspects
+    else
+      flash[:error] = I18n.t 'albums.create.failure'
+      redirect_to albums_path(:aspect =>aspects)
+    end
   end
 
   def new
@@ -35,12 +40,27 @@ class AlbumsController < ApplicationController
   end
 
   def show
-    @photo = Photo.new
-    @album = current_user.find_visible_post_by_id( params[:id] )
+    @person = current_user.visible_people.find_by_person_id(params[:person_id]) if params[:person_id]
+    @person ||= current_user.person
+    
+    @album = :uploads if params[:id] == "uploads"
+    @album ||= current_user.find_visible_post_by_id(params[:id])
+
     unless @album
       render :file => "#{Rails.root}/public/404.html", :layout => false, :status => 404
     else
-      @album_photos = @album.photos
+    
+      if @album == :uploads
+        @album_id     = nil
+        @album_name   = "Uploads"
+        @album_photos = current_user.visible_posts(:_type => "Photo", :album_id => nil, :person_id => @person.id)
+
+      else
+        @album_id     = @album.id
+        @album_name   = @album.name
+        @album_photos = @album.photos
+      end
+
       respond_with @album
     end
   end
@@ -53,22 +73,12 @@ class AlbumsController < ApplicationController
   def update
     @album = current_user.find_visible_post_by_id params[:id]
 
-    data = clean_hash(params[:album])
-
-    if current_user.update_post( @album, data )
+    if current_user.update_post( @album, params[:album] )
       flash[:notice] =  I18n.t 'albums.update.success', :name  => @album.name
       respond_with @album
     else
       flash[:error] =  I18n.t 'albums.update.failure', :name  => @album.name
       render :action => :edit
     end
-  end
-
-  private
-  def clean_hash(params)
-    return {
-      :name => params[:name],
-      :to   => params[:to]
-    }
   end
 end

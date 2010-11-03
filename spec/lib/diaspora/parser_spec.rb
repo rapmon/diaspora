@@ -5,44 +5,29 @@
 require 'spec_helper'
 
 describe Diaspora::Parser do
-  let(:user) { Factory.create(:user) }
-  let(:aspect) { user.aspect(:name => 'spies') }
-  let(:user2) { Factory.create(:user) }
-  let(:aspect2) { user2.aspect(:name => "pandas") }
-  let(:user3) { Factory.create :user }
+  let(:user) { make_user }
+  let(:aspect) { user.aspects.create(:name => 'spies') }
+  let(:user2) { make_user }
+  let(:aspect2) { user2.aspects.create(:name => "pandas") }
+  let(:user3) { make_user }
   let(:person) { user3.person }
 
   describe "parsing compliant XML object" do
-    it 'should be able to correctly handle comments with person in db' do
+    it 'should be able to correctly parse comment fields' do
       post = user.post :status_message, :message => "hello", :to => aspect.id
-      comment = Factory.build(:comment, :post => post, :person => person, :text => "Freedom!")
+      comment = Factory.create(:comment, :post => post, :person => person, :diaspora_handle => person.diaspora_handle, :text => "Freedom!")
       comment.delete
       xml = comment.to_diaspora_xml
-
       comment_from_xml = Diaspora::Parser.from_xml(xml)
-      comment_from_xml.text.should == "Freedom!"
-      comment_from_xml.person.should == person
+      comment_from_xml.diaspora_handle.should ==  person.diaspora_handle
       comment_from_xml.post.should == post
-    end
-
-    it 'should be able to correctly handle person on a comment with person not in db' do
-      friend_users(user, aspect, user2, aspect2)
-      post = user.post :status_message, :message => "hello", :to => aspect.id
-      comment = user2.comment "Fool!", :on => post
-
-      xml = comment.to_diaspora_xml
-      user2.delete
-      user2.person.delete
-
-      parsed_person = Diaspora::Parser::parse_or_find_person_from_xml(xml)
-      parsed_person.save.should be true
-      parsed_person.diaspora_handle.should == user2.person.diaspora_handle
-      parsed_person.profile.should_not be_nil
+      comment_from_xml.text.should == "Freedom!"
+      comment_from_xml.should_not be comment
     end
 
     it 'should accept retractions' do
       friend_users(user, aspect, user2, aspect2)
-      message = Factory.create(:status_message, :person => user2.person)
+      message = user2.post(:status_message, :message => "cats", :to => aspect2.id)
       retraction = Retraction.for(message)
       xml = retraction.to_diaspora_xml
 
@@ -50,6 +35,8 @@ describe Diaspora::Parser do
     end
 
     context "friending" do
+
+    let(:good_request) { FakeHttpRequest.new(:success)}
       before do
         deliverable = Object.new
         deliverable.stub!(:deliver)
@@ -57,30 +44,17 @@ describe Diaspora::Parser do
       end
 
       it "should create a new person upon getting a person request" do
-        request = Request.instantiate(:to =>"http://www.google.com/", :from => person)
+        new_person = Factory.build(:person) 
 
-        xml = request.to_diaspora_xml
-
-        user3.destroy
-        person.destroy
-        user
-        lambda { user.receive xml, person }.should change(Person, :count).by(1)
-      end
-
-      it "should not create a new person if the person is already here" do
-        request = Request.instantiate(:to =>"http://www.google.com/", :from => user2.person)
-        original_person_id = user2.person.id
+        Person.should_receive(:by_account_identifier).and_return(new_person)
+        request = Request.instantiate(:to =>"http://www.google.com/", :from => new_person)
         xml = request.to_diaspora_xml
         user
-        lambda { user.receive xml, user2.person }.should_not change(Person, :count)
 
-        user2.reload
-        user2.person.reload
-        user2.serialized_private_key.include?("PRIVATE").should be true
-
-        url = "http://" + request.callback_url.split("/")[2] + "/"
-        Person.where(:url => url).first.id.should == original_person_id
+        lambda { user.receive xml, new_person }.should change(Person, :count).by(1)
       end
+
+
     end
 
     it "should activate the Person if I initiated a request to that url" do
@@ -88,19 +62,19 @@ describe Diaspora::Parser do
       user.reload
       request.reverse_for user3
 
-      xml = request.to_diaspora_xml
+      xml = user3.salmon(request).xml_for(user.person)
 
-      user3.person.destroy
-      user3.destroy
+      user3.delete
 
-      user.receive xml, user3.person
-      new_person = Person.first(:url => user3.person.url)
+      user.receive_salmon(xml)
+      new_person = Person.find_by_url(user3.person.url)
       new_person.nil?.should be false
 
       user.reload
       aspect.reload
-      aspect.people.include?(new_person).should be true
-      user.friends.include?(new_person).should be true
+      new_contact = user.contact_for(new_person)
+      aspect.people.include?(new_contact).should be true
+      user.friends.include?(new_contact).should be true
     end
 
     it 'should process retraction for a person' do
