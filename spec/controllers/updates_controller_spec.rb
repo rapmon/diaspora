@@ -8,15 +8,15 @@ describe UpdatesController do
   
   before do
     
-    @user    = Factory.create(:user)
-    @aspect11  = @user.aspect(:name => "Work1")
-    @aspect12 = @user.aspect(:name => "Fun1")
+    @user     = make_user
+    @aspect11 = @user.aspects.create(:name => "Work1")
+    @aspect12 = @user.aspects.create(:name => "Fun1")
     
-    @user2   = Factory.create(:user)
-    @aspect21 = @user2.aspect(:name => "Work2")
+    @user2    = make_user
+    @aspect21 = @user2.aspects.create(:name => "Work2")
     
-    @user3 =   Factory.create(:user)
-    @aspect31 = @user3.aspect(:name => "Fun3")
+    @user3    = make_user
+    @aspect31 = @user3.aspects.create(:name => "Fun3")
        
     friend_users(@user,@aspect11, @user2, @aspect21)  #users 1 and 2 related by work
     friend_users(@user,@aspect12, @user3, @aspect31)  #users 1 and 3 related by fun
