@@ -3,11 +3,23 @@
 -#   the COPYRIGHT file.
 
 
-.span-4.append-1.last
+.span-24.last
+  #author_info
+    .from{:style=>"padding-left:0;display:block;"}
+      %h2{:style=>"display:block;"}
+        = @person.real_name
+        .right{:style => "top:0;"}
+          %span.description
+            = @person.diaspora_handle
+
+      #person_nav_links
+        = link_to t('layouts.header.view_profile'), person_path(@person)
+        = link_to t('_photos'), person_photos_path(@person)
+
+.span-8.append-1.last
   = render :partial => 'people/profile_sidebar', :locals => {:person => @person, :is_contact => @is_contact}
 
 .span-15.last
-  = render 'shared/author_info', :person => @person
   - if @contact || current_user.person == @person
 
     - if @posts.count > 0
@@ -18,24 +30,32 @@
       = will_paginate @posts
 
     - else
-      %h3= t('.no_posts')
+      %ul#stream
+        %li
+          %h3= t('.no_posts')
 
+  - elsif current_user.has_incoming_request_from(@person)
+    .floating
+      %h3 
+        = t('.incoming_request') 
+      %h4
+        = link_to t('.return_to_aspects'), aspects_manage_path
+        = t('.to_accept_or_ignore')
+        
   - else
     .floating
       %h3
-        = t('.not_friends', :name => @person.real_name)
+        = t('.not_connected', :name => @person.real_name)
         
-      - unless @pending_request
+      - unless pending_request_for(@person)
         %h3
           .description
             = t('.request_people')
          
-        = form_for Request.new do |f|
-          = f.select(:aspect_id, @aspects_dropdown_array)
-          = f.hidden_field :destination_url, :value => @person.diaspora_handle
-          = f.submit t('.add_friend')
+        = render :partial =>'requests/new_request_to_person', :locals => {:aspects => @aspects, :destination_handle => @person.diaspora_handle}
 
       - else
         %h3
           .description
             = t('.already_requested', :name => @person.real_name)
+

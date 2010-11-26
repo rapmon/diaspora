@@ -22,12 +22,9 @@ class User
   key :invites, Integer, :default => 5
   key :invitation_token, String
   key :invitation_sent_at, DateTime
-  key :inviter_ids, Array, :typecast => 'ObjectId'
   key :pending_request_ids, Array, :typecast => 'ObjectId'
   key :visible_post_ids, Array, :typecast => 'ObjectId'
   key :visible_person_ids, Array, :typecast => 'ObjectId'
-
-  key :invite_messages, Hash
 
   key :getting_started, Boolean, :default => true
 
@@ -45,25 +42,26 @@ class User
   validates_presence_of :person, :unless => proc {|user| user.invitation_token.present?}
   validates_associated :person
 
-  one :person, :class_name => 'Person', :foreign_key => :owner_id
+  one :person, :class => Person, :foreign_key => :owner_id
 
-  many :inviters, :in => :inviter_ids, :class_name => 'User'
-  many :friends, :class_name => 'Contact', :foreign_key => :user_id
-  many :visible_people, :in => :visible_person_ids, :class_name => 'Person' # One of these needs to go
-  many :pending_requests, :in => :pending_request_ids, :class_name => 'Request'
-  many :raw_visible_posts, :in => :visible_post_ids, :class_name => 'Post'
-  many :aspects, :class_name => 'Aspect', :dependent => :destroy
+  many :invitations_from_me, :class => Invitation, :foreign_key => :from_id
+  many :invitations_to_me, :class => Invitation, :foreign_key => :to_id
+  many :contacts, :class => Contact, :foreign_key => :user_id
+  many :visible_people, :in => :visible_person_ids, :class => Person # One of these needs to go
+  many :pending_requests, :in => :pending_request_ids, :class => Request
+  many :raw_visible_posts, :in => :visible_post_ids, :class => Post
+  many :aspects, :class => Aspect, :dependent => :destroy
 
-  many :services, :class_name => "Service"
+  many :services, :class => Service
 
   #after_create :seed_aspects
 
-  before_destroy :unfriend_everyone, :remove_person
+  before_destroy :disconnect_everyone, :remove_person
   before_save do
     person.save if person
   end
 
-  attr_accessible :getting_started, :password, :password_confirmation, :language, 
+  attr_accessible :getting_started, :password, :password_confirmation, :language,
 
   def strip_and_downcase_username
     if username.present?
@@ -83,57 +81,62 @@ class User
     super
   end
 
+  def has_incoming_request_from(person)
+    self.pending_requests.select do |req|
+      req.to_id == self.person.id
+    end.any? { |req| req.from_id == person.id }
+  end
+
   ######## Making things work ########
   key :email, String
 
   def method_missing(method, *args)
-    self.person.send(method, *args)
+    self.person.send(method, *args) if self.person
   end
 
   ######### Aspects ######################
   def drop_aspect(aspect)
-    if aspect.people.size == 0
+    if aspect.contacts.count == 0
       aspect.destroy
     else
       raise "Aspect not empty"
     end
   end
 
-  def move_friend(opts = {})
-    return true if opts[:to] == opts[:from]
-    if opts[:friend_id] && opts[:to] && opts[:from]
-      from_aspect = self.aspects.first(:_id => opts[:from])
-      posts_to_move = from_aspect.posts.find_all_by_person_id(opts[:friend_id])
-      if add_person_to_aspect(opts[:friend_id], opts[:to], :posts => posts_to_move)
-        delete_person_from_aspect(opts[:friend_id], opts[:from], :posts => posts_to_move)
-        return true
+  def move_contact(opts = {})
+    if opts[:to] == opts[:from]
+      true
+    elsif opts[:person_id] && opts[:to] && opts[:from]
+      from_aspect = self.aspects.find_by_id(opts[:from])
+
+      if add_person_to_aspect(opts[:person_id], opts[:to])
+        delete_person_from_aspect(opts[:person_id], opts[:from])
       end
     end
-    false
   end
 
-  def add_person_to_aspect(person_id, aspect_id, opts = {})
+  def add_person_to_aspect(person_id, aspect_id)
     contact = contact_for(Person.find(person_id))
     raise "Can not add person to an aspect you do not own" unless aspect = self.aspects.find_by_id(aspect_id)
-    raise "Can not add person you are not friends with" unless contact
-    raise 'Can not add person who is already in the aspect' if aspect.people.include?(contact)
+    raise "Can not add person you are not connected to" unless contact
+    raise 'Can not add person who is already in the aspect' if aspect.contacts.include?(contact)
     contact.aspects << aspect
-    opts[:posts] ||= self.raw_visible_posts.all(:person_id => person_id)
-
-    aspect.posts += opts[:posts]
-    contact.save
-    aspect.save
+    contact.save!
+    aspect.save!
   end
 
   def delete_person_from_aspect(person_id, aspect_id, opts = {})
     aspect = Aspect.find(aspect_id)
     raise "Can not delete a person from an aspect you do not own" unless aspect.user == self
     contact = contact_for Person.find(person_id)
-    contact.aspect_ids.delete aspect.id
-    opts[:posts] ||= aspect.posts.all(:person_id => person_id)
-    aspect.posts -= opts[:posts]
-    contact.save
-    aspect.save
+
+    if opts[:force] || contact.aspect_ids.count > 1
+      contact.aspect_ids.delete aspect.id
+      contact.save!
+      aspect.save!
+    else
+      raise "Can not delete a person from last aspect"
+    end
   end
 
   ######## Posting ########
@@ -163,7 +166,7 @@ class User
     self.save
     Rails.logger.info("Pushing: #{post.inspect} out to aspects")
     push_to_aspects(post, aspect_ids)
-    post.socket_to_uid(id, :aspect_ids => aspect_ids) if post.respond_to?(:socket_to_uid)
+    post.socket_to_uid(id, :aspect_ids => aspect_ids) if post.respond_to?(:socket_to_uid) && !post.pending
     if post.public
       self.services.each do |service|
         self.send("post_to_#{service.provider}".to_sym, service, post.message)
@@ -225,7 +228,7 @@ class User
     aspects.each { |aspect|
       aspect.posts << post
       aspect.save
-      target_contacts = target_contacts | aspect.people
+      target_contacts = target_contacts | aspect.contacts
     }
 
     push_to_hub(post) if post.respond_to?(:public) && post.public
@@ -241,21 +244,22 @@ class User
   end
 
   def push_to_person(salmon, post, person)
+    person.reload # Sadly, we need this for Ruby 1.9.
     # person.owner will always return a ProxyObject.
     # calling nil? performs a necessary evaluation.
     unless person.owner.nil?
+      Rails.logger.info("event=push_to_person route=local sender=#{self.diaspora_handle} recipient=#{person.diaspora_handle} payload_type=#{post.class}")
       person.owner.receive(post.to_diaspora_xml, self.person)
     else
       xml = salmon.xml_for person
-
-      Rails.logger.debug("#{self.real_name} is adding xml to message queue to #{person.receive_url}")
+      Rails.logger.info("event=push_to_person route=remote sender=#{self.diaspora_handle} recipient=#{person.diaspora_handle} payload_type=#{post.class}")
       QUEUE.add_post_request(person.receive_url, xml)
       QUEUE.process
     end
   end
 
   def push_to_hub(post)
-    Rails.logger.debug("Pushing update to pubsub server #{APP_CONFIG[:pubsub_server]} with url #{self.public_url}")
+    Rails.logger.debug("event=push_to_hub target=#{APP_CONFIG[:pubsub_server]} sender_url=#{self.public_url}")
     QUEUE.add_hub_notification(APP_CONFIG[:pubsub_server], self.public_url)
   end
 
@@ -281,18 +285,20 @@ class User
     if comment.save
       comment
     else
-      Rails.logger.warn "this failed to save: #{comment.inspect}"
+      Rails.logger.warn "event=build_comment status=save_failure user=#{self.diaspora_handle} comment=#{comment.inspect}"
       false
     end
   end
 
   def dispatch_comment(comment)
     if owns? comment.post
+      Rails.logger.info "event=dispatch_comment direction=downstream user=#{self.diaspora_handle} comment=#{comment.inspect}"
       comment.post_creator_signature = comment.sign_with_key(encryption_key)
       comment.save
       aspects = aspects_with_post(comment.post_id)
       push_to_people(comment, people_in_aspects(aspects))
     elsif owns? comment
+      Rails.logger.info "event=dispatch_comment direction=upstream user=#{self.diaspora_handle} comment=#{comment.inspect}"
       comment.save
       push_to_people comment, [comment.post.person]
     end
@@ -321,89 +327,37 @@ class User
 
   ###Invitations############
   def invite_user(opts = {})
-    if self.invites > 0
-
-      aspect_id = opts.delete(:aspect_id)
-      if aspect_id == nil
-        raise "Must invite into aspect"
-      end
-      aspect_object = self.aspects.find_by_id(aspect_id)
-      if !(aspect_object)
-        raise "Must invite to your aspect"
-      else
-        u = User.find_by_email(opts[:email])
-        if u.nil?
-        elsif contact_for(u.person)
-          raise "You are already friends with this person"
-        elsif not u.invited?
-          self.send_friend_request_to(u.person, aspect_object)
-          return
-        elsif u.invited? && u.inviters.include?(self)
-          raise "You already invited this person"
-        end
-      end
-      request = Request.instantiate(
-        :to   => "http://local_request.example.com",
-        :from => self.person,
-        :into => aspect_id
-      )
-
-      invited_user = User.invite!(:email => opts[:email], :request => request, :inviter => self, :invite_message => opts[:invite_message])
-
-      self.invites = self.invites - 1
-      self.pending_requests << request
-      request.save
-      self.save!
-      invited_user
-    else
-      raise "You have no invites"
+    aspect_id = opts.delete(:aspect_id)
+    if aspect_id == nil
+      raise "Must invite into aspect"
     end
-  end
-
-  def self.invite!(attributes={})
-    inviter = attributes.delete(:inviter)
-    request = attributes.delete(:request)
-
-    invitable = find_or_initialize_with_error_by(:email, attributes.delete(:email))
-    invitable.attributes = attributes
-    if invitable.inviters.include?(inviter)
-      raise "You already invited this person"
+    aspect_object = self.aspects.find_by_id(aspect_id)
+    if !(aspect_object)
+      raise "Must invite to your aspect"
     else
-      invitable.pending_requests << Request.create(
-        :person          => request.person,
-        :diaspora_handle => request.diaspora_handle,
-        :callback_url    => request.callback_url,
-        :destination_url => request.destination_url)
+      Invitation.invite(:email => opts[:email],
+                        :from => self,
+                        :into => aspect_object,
+                        :message => opts[:invite_message])
 
-      invitable.inviters << inviter
-      message = attributes.delete(:invite_message)
-      if message
-        invitable.invite_messages[inviter.id.to_s] = message
-      end
     end
-
-    if invitable.new_record?
-      invitable.errors.clear if invitable.email.try(:match, Devise.email_regexp)
-    else
-      invitable.errors.add(:email, :taken) unless invitable.invited?
-    end
-
-    invitable.invite! if invitable.errors.empty?
-    invitable
   end
 
   def accept_invitation!(opts = {})
     if self.invited?
-
+      log_string = "event=invitation_accepted username=#{opts[:username]} "
+      log_string << "inviter=#{invitations_to_me.first.from.diaspora_handle}" if invitations_to_me.first
+      Rails.logger.info log_string
       self.setup(opts)
 
       self.invitation_token = nil
       self.password              = opts[:password]
       self.password_confirmation = opts[:password_confirmation]
-
       self.person.save!
-      self.invitation_token = nil
       self.save!
+      invitations_to_me.each{|invitation| invitation.to_request!}
+
+      self.reload # Because to_request adds a request and saves elsewhere
       self
     end
   end
@@ -418,7 +372,7 @@ class User
 
   def setup(opts)
     self.username = opts[:username]
-    
+
     opts[:person] ||= {}
     opts[:person][:profile] ||= Profile.new
 
@@ -434,16 +388,16 @@ class User
 
 
   def seed_aspects
-    self.aspects.create(:name => "Family")
-    self.aspects.create(:name => "Work")
+    self.aspects.create(:name => I18n.t('aspects.seed.family'))
+    self.aspects.create(:name => I18n.t('aspects.seed.work'))
   end
 
   def as_json(opts={})
     {
       :user => {
         :posts            => self.raw_visible_posts.each { |post| post.as_json },
-        :friends          => self.friends.each { |friend| friend.as_json },
-        :aspects           => self.aspects.each { |aspect| aspect.as_json },
+        :contacts         => self.contacts.each { |contact| contact.as_json },
+        :aspects          => self.aspects.each { |aspect| aspect.as_json },
         :pending_requests => self.pending_requests.each { |request| request.as_json },
       }
     }
@@ -465,12 +419,12 @@ class User
     self.person.destroy
   end
 
-  def unfriend_everyone
-    friends.each { |contact|
+  def disconnect_everyone
+    contacts.each { |contact|
       if contact.person.owner?
-        contact.person.owner.unfriended_by self.person
+        contact.person.owner.disconnected_by self.person
       else
-        self.unfriend contact
+        self.disconnect contact
       end
     }
   end

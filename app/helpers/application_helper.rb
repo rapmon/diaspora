@@ -5,6 +5,10 @@
 module ApplicationHelper
   @@youtube_title_cache = Hash.new("no-title")
 
+  def modern_browser?
+    false
+  end
+
   def current_aspect?(aspect)
     !@aspect.is_a?(Symbol) && @aspect.id == aspect.id
   end
@@ -18,8 +22,9 @@ module ApplicationHelper
   end
   
   def object_path(object, opts = {})
+    return "" if object.nil?
     object = object.person if object.is_a? User
-    eval("#{object.class.to_s.underscore}_path(object, opts)")
+    eval("#{object.class.name.underscore}_path(object, opts)")
   end
 
   def object_fields(object)
@@ -63,22 +68,22 @@ module ApplicationHelper
   end
 
   def image_or_default(person)
-    image_location = person.profile.image_url
+    image_location = person.profile.image_url if person.profile
     image_location ||= "/images/user/default.png"
     image_location
   end
   
+  def hard_link(string, path)
+    link_to string, path, :rel => 'external' 
+  end
 
   def person_image_link(person, opts = {})
+    return "" if person.nil?
     if opts[:to] == :photos
       link_to person_image_tag(person), person_photos_path(person)
     else
-      link_to person_image_tag(person), object_path(person)
+      link_to person_image_tag(person), person_path(person)
     end
-  end
-
-  def new_request(request_count)
-    "new_requests" if request_count > 0 #Should not be Il8ned
   end
 
   def post_yield_tag(post)
@@ -147,9 +152,9 @@ module ApplicationHelper
     end
 
     if options[:youtube]
-      while youtube = message.match(/youtube\.com::([A-Za-z0-9_\\]+)/)
+      while youtube = message.match(/youtube\.com::([A-Za-z0-9_\\\-]+)/)
         videoid = youtube[1]
-        message.gsub!('youtube.com::'+videoid, '<a onclick="openVideo(\'youtube.com\', \'' + videoid + '\', this)" href="#video">Youtube: ' + youtube_title(videoid) + '</a>')
+        message.gsub!('youtube.com::'+videoid, '<a class="video-link" data-host="youtube.com" data-video-id="' + videoid + '" href="#video">Youtube: ' + youtube_title(videoid) + '</a>')
       end
     end
 
@@ -161,7 +166,7 @@ module ApplicationHelper
       return @@youtube_title_cache[id]
     end
 
-    ret = 'Unknown Video Title' #TODO add translation
+    ret = I18n.t 'application.helper.youtube_title.unknown'
     http = Net::HTTP.new('gdata.youtube.com', 80)
     path = '/feeds/api/videos/'+id+'?v=2'
     resp, data = http.get(path, nil)
@@ -172,5 +177,9 @@ module ApplicationHelper
 
     @@youtube_title_cache[id] = ret;
     return ret
+  end
+
+  def info_text(text)
+    image_tag 'icons/monotone_question.png', :class => 'what_is_this', :title => text
   end
 end

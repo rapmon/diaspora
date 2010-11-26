@@ -17,10 +17,10 @@ describe User do
 
 
   before do
-    friend_users(user, aspect, user2, aspect2)
+    connect_users(user, aspect, user2, aspect2)
   end
 
-  it 'should stream only one message to the everyone aspect when a multi-aspected friend posts' do
+  it 'should stream only one message to the everyone aspect when a multi-aspected contacts posts' do
     user.add_person_to_aspect(user2.person.id, user.aspects.create(:name => "villains").id)
     status = user2.post(:status_message, :message => "Users do things", :to => aspect2.id)
     xml = status.to_diaspora_xml
@@ -91,8 +91,8 @@ describe User do
       aspect.posts.include?(@status_message).should be_true
     end
 
-    it 'should be removed on unfriending' do
-      user.unfriend(user2.person)
+    it 'should be removed on disconnecting' do
+      user.disconnect(user2.person)
       user.reload
       user.raw_visible_posts.should_not include @status_message
     end
@@ -100,27 +100,28 @@ describe User do
     it 'should be remove a post if the noone links to it' do
       person = user2.person
       user2.delete
+      person.reload
 
-      lambda {user.unfriend(person)}.should change(Post, :count).by(-1)
+      lambda {user.disconnect(person)}.should change(Post, :count).by(-1)
     end
 
     it 'should keep track of user references for one person ' do
       @status_message.reload
       @status_message.user_refs.should == 1
 
-      user.unfriend(user2.person)
+      user.disconnect(user2.person)
       @status_message.reload
       @status_message.user_refs.should == 0
     end
 
     it 'should not override userrefs on receive by another person' do
-      user3.activate_friend(user2.person, aspect3)
+      user3.activate_contact(user2.person, aspect3)
       user3.receive @status_message.to_diaspora_xml, user2.person
 
       @status_message.reload
       @status_message.user_refs.should == 2
 
-      user.unfriend(user2.person)
+      user.disconnect(user2.person)
       @status_message.reload
       @status_message.user_refs.should == 1
     end
@@ -128,7 +129,7 @@ describe User do
 
   describe 'comments' do
     before do
-      friend_users(user, aspect, user3, aspect3)
+      connect_users(user, aspect, user3, aspect3)
       @post = user.post :status_message, :message => "hello", :to => aspect.id
 
       user2.receive @post.to_diaspora_xml, user.person

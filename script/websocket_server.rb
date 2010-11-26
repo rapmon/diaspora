@@ -43,38 +43,56 @@ end
 
 begin
   EM.run {
-
-
     Diaspora::WebSocket.initialize_channels
 
-    EventMachine::WebSocket.start(
-                  :host => APP_CONFIG[:socket_host],
-                  :port => APP_CONFIG[:socket_port],
-                  :debug =>APP_CONFIG[:socket_debug]) do |ws|
-      ws.onopen {
-        debug_pp ws.request
+    socket_params = { :host => APP_CONFIG[:socket_host],
+                      :port => APP_CONFIG[:socket_port],
+                      :debug =>APP_CONFIG[:socket_debug] }
 
-        cookies = ws.request["Cookie"].split(';')
-        session_key = "_diaspora_session="
-        enc_diaspora_cookie = cookies.detect{|c| c.include?(session_key)}.gsub(session_key,'')
-        cookie = Marshal.load(enc_diaspora_cookie.unpack("m*").first)
-
-        debug_pp cookie
-
-        user_id = cookie["warden.user.user.key"].last
-        
-        debug_pp "In WSS, suscribing user: #{User.find(user_id).real_name} with id: #{user_id}"
-
-        sid = Diaspora::WebSocket.subscribe(user_id, ws)
-
-        ws.onmessage { |msg| SocketsController.new.incoming(msg) }
-
-        ws.onclose {
-          debug_pp "In WSS, unsuscribing user: #{User.find(user_id).real_name} with id: #{user_id}"
-          Diaspora::WebSocket.unsubscribe(user_id, sid) }
+    if APP_CONFIG[:socket_secure] && APP_CONFIG[:socket_private_key_location] && APP_CONFIG[:socket_cert_chain_location]
+      socket_params[:secure] = true;
+      socket_params[:tls_options] = {
+                    :private_key_file => APP_CONFIG[:socket_private_key_location],
+                    :cert_chain_file  => APP_CONFIG[:socket_cert_chain_location]
       }
     end
-    PID_FILE = APP_CONFIG[:socket_pidfile]
+
+    EventMachine::WebSocket.start( socket_params ) do |ws|
+
+      ws.onopen {
+        begin
+          debug_pp ws.request
+
+          cookies = ws.request["Cookie"].split(';')
+          session_key = "_diaspora_session="
+          enc_diaspora_cookie = cookies.detect{|c| c.include?(session_key)}.gsub(session_key,'')
+          cookie = Marshal.load(enc_diaspora_cookie.unpack("m*").first)
+
+          debug_pp cookie
+
+          user_id = cookie["warden.user.user.key"].last
+
+          debug_pp "In WSS, suscribing user: #{User.find(user_id).real_name} with id: #{user_id}"
+          sid = Diaspora::WebSocket.subscribe(user_id, ws)
+
+          ws.onmessage { |msg| SocketsController.new.incoming(msg) }
+
+          ws.onclose {
+            begin
+              debug_pp "In WSS, unsuscribing user: #{User.find(user_id).real_name} with id: #{user_id}"
+              Diaspora::WebSocket.unsubscribe(user_id, sid)
+            rescue
+              debug_pp "Could not unsubscribe socket for #{user_id}"
+            end
+          }
+        rescue RuntimeError => e
+          debug_pp "Could not open socket for request with cookie: #{ws.request["Cookie"]}"
+          debug_pp "Error was: "
+          debug_pp e
+        end
+      }
+    end
+    PID_FILE = (APP_CONFIG[:socket_pidfile] ? APP_CONFIG[:socket_pidfile] : 'tmp/diaspora-ws.pid')
     write_pidfile
     puts "Websocket server started."
     process_message

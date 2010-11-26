@@ -3,21 +3,20 @@
 -#   the COPYRIGHT file.
 
 
-=content_for(:head) do
+- content_for :head do
+
   :javascript
     $(document).ready(function(){
-      $(".image_thumb img").load( function() {
-        $(this).fadeIn("slow");
+      $("#thumbnails").find("img").bind("mouseenter",function(){
+        var photo = $(this),
+            messageId = photo.attr("data-message-id");
+
+        $("#thumbnails").find("img[data-message-id='"+messageId+"']").css('opacity','0.5');
+        $("#thumbnails").find("img").fadeTo(100,1);
       });
     });
 
-.span-15.last
-  #thumbnails
-    - for photo in photos
-      .image_thumb
-        = link_to (image_tag photo.url(:thumb_medium)), photo_path(photo)
-
-/.span-24.last
-/  #add_photo_pane
-/    = render "photos/new_photo", :aspect_id => :all
+#thumbnails.span-15.last
+  - for photo in photos
+    = link_to (image_tag photo.url(:thumb_medium), "data-message-id" => photo.status_message_id ), photo_path(photo)
 

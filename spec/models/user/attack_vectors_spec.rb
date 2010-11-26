@@ -17,27 +17,25 @@ describe "attack vectors" do
   let(:user3) { make_user }
   let(:aspect3) { user3.aspects.create(:name => 'heroes') }
 
-  context 'non-friend valid user' do
+  context 'non-contact valid user' do
     
-    it 'raises if receives post by non-friend' do
-      post_from_non_friend = bad_user.build_post( :status_message, :message => 'hi')
-      xml = bad_user.salmon(post_from_non_friend).xml_for(user.person)
+    it 'does not save a post from a non-contact' do
+      post_from_non_contact = bad_user.build_post( :status_message, :message => 'hi')
+      xml = bad_user.salmon(post_from_non_contact).xml_for(user.person)
 
-      post_from_non_friend.delete
+      post_from_non_contact.delete
       bad_user.delete
-
       post_count = Post.count
-      proc{ user.receive_salmon(xml) }.should raise_error /Not friends with that person/
 
-      user.raw_visible_posts.include?(post_from_non_friend).should be false
-
+      user.receive_salmon(xml)
+      user.raw_visible_posts.include?(post_from_non_contact).should be false
       Post.count.should == post_count
     end
 
   end
 
   it 'does not let a user attach to posts previously in the db unless its received from the author' do
-    friend_users(user, aspect, user3, aspect3)
+    connect_users(user, aspect, user3, aspect3)
 
     original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
 
@@ -46,39 +44,40 @@ describe "attack vectors" do
     user3.reload.visible_posts.should_not include(original_message)
   end
 
-  context 'malicious friend attack vector' do
+  context 'malicious contact attack vector' do
     before do
-      friend_users(user, aspect, user2, aspect2)
-      friend_users(user, aspect, user3, aspect3)
+      connect_users(user, aspect, user2, aspect2)
+      connect_users(user, aspect, user3, aspect3)
     end
 
+    describe 'mass assignment on id' do
+      it "does not save a message over an old message with a different author" do
+        original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
 
-    it 'overwrites messages with a different user' do 
-      original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
+        user.receive_salmon(user2.salmon(original_message).xml_for(user.person))
 
-      user.receive_salmon(user2.salmon(original_message).xml_for(user.person))
-      user.raw_visible_posts.count.should be 1
+        lambda {
+          malicious_message = Factory.build( :status_message, :id => original_message.id, :message => 'BAD!!!', :person => user3.person)
+          user.receive_salmon(user3.salmon(malicious_message).xml_for(user.person))
+        }.should_not change{user.reload.raw_visible_posts.count}
 
-      malicious_message = Factory.build( :status_message, :id => original_message.id, :message => 'BAD!!!', :person => user3.person)
-      proc{user.receive_salmon(user3.salmon(malicious_message).xml_for(user.person))}.should raise_error /Malicious Post/
+        original_message.reload.message.should == "store this!"
+        user.raw_visible_posts.first.message.should == "store this!"
+      end
+       
+      it 'does not save a message over an old message with the same author' do
+        original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
+        user.receive_salmon(user2.salmon(original_message).xml_for(user.person))
 
-      user.raw_visible_posts.count.should be 1
-      user.raw_visible_posts.first.message.should == "store this!"
+        lambda {
+          malicious_message = Factory.build( :status_message, :id => original_message.id, :message => 'BAD!!!', :person => user2.person)
+          user.receive_salmon(user3.salmon(malicious_message).xml_for(user.person))
+        }.should_not change{user.reload.raw_visible_posts.count}
+
+        original_message.reload.message.should == "store this!"
+        user.raw_visible_posts.first.message.should == "store this!"
+      end
     end
-     
-    it 'overwrites messages which apear to be from the same user' do 
-      original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
-      user.receive_salmon(user2.salmon(original_message).xml_for(user.person))
-      user.raw_visible_posts.count.should be 1
-
-      malicious_message = Factory.build( :status_message, :id => original_message.id, :message => 'BAD!!!', :person => user2.person)
-      proc{user.receive_salmon(user3.salmon(malicious_message).xml_for(user.person))}.should raise_error /Malicious Post/
-
-
-      user.raw_visible_posts.count.should be 1
-      user.raw_visible_posts.first.message.should == "store this!"
-    end
-
     it 'should not overwrite another persons profile profile' do
       profile = user2.profile.clone
       profile.first_name = "Not BOB"
@@ -86,12 +85,12 @@ describe "attack vectors" do
       user2.reload
 
       first_name = user2.profile.first_name
-      proc{user.receive_salmon(user3.salmon(profile).xml_for(user.person))}.should raise_error /Malicious Post/
+      user.receive_salmon(user3.salmon(profile).xml_for(user.person))
       user2.reload
       user2.profile.first_name.should == first_name
     end
 
-    it 'should not receive retractions on post you do not own' do
+    it "ignores retractions on a post not owned by the retraction's sender" do
       original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
       user.receive_salmon(user2.salmon(original_message).xml_for(user.person))
       user.raw_visible_posts.count.should be 1
@@ -101,12 +100,12 @@ describe "attack vectors" do
       ret.diaspora_handle = user3.person.diaspora_handle
       ret.type = original_message.class.to_s
 
-      proc{ user.receive_salmon(user3.salmon(ret).xml_for(user.person)) }.should raise_error /is trying to retract a post they do not own/
+      user.receive_salmon(user3.salmon(ret).xml_for(user.person))
       StatusMessage.count.should be 1
       user.reload.raw_visible_posts.count.should be 1
     end
 
-    it 'should disregard retractions for a non-existant posts' do
+    it "disregards retractions for non-existent posts that are from someone other than the post's author" do
       original_message = user2.post :status_message, :message => 'store this!', :to => aspect2.id
       id = original_message.reload.id
 
@@ -131,8 +130,9 @@ describe "attack vectors" do
       ret.diaspora_handle = user2.person.diaspora_handle
       ret.type = original_message.class.to_s
 
-      proc{ user.receive_salmon(user3.salmon(ret).xml_for(user.person)) }.should raise_error /Malicious Post/
-      StatusMessage.count.should be 1
+      lambda {
+        user.receive_salmon(user3.salmon(ret).xml_for(user.person))
+      }.should_not change(StatusMessage, :count)
       user.reload.raw_visible_posts.count.should be 1
     end
 
@@ -144,9 +144,7 @@ describe "attack vectors" do
 
       proc{ 
         user.receive_salmon(user3.salmon(ret).xml_for(user.person)) 
-      }.should raise_error /#{user3.diaspora_handle} trying to unfriend #{user2.person.id} from #{user.id}/
-    
-      user.reload.friends.count.should == 2
+      }.should_not change{user.reload.contacts.count}
     end
 
     it 'it should not allow you to send retractions with xml and salmon handle mismatch' do
@@ -157,9 +155,7 @@ describe "attack vectors" do
 
       proc{ 
         user.receive_salmon(user3.salmon(ret).xml_for(user.person)) 
-      }.should raise_error /Malicious Post/
-    
-      user.reload.friends.count.should == 2
+      }.should_not change{user.reload.contacts.count}
     end
 
     it 'does not let me update other persons post' do

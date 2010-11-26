@@ -18,7 +18,7 @@ describe PhotosController do
   let!(:photo2){ user2.post(:photo, :user_file => image, :to => aspect2.id)}
 
   before do
-    friend_users(user, aspect, user2, aspect2)
+    connect_users(user, aspect, user2, aspect2)
     sign_in :user, user
     @controller.stub!(:current_user).and_return(user)
   end
@@ -41,7 +41,7 @@ describe PhotosController do
       assigns[:posts].should == [photo]
     end
 
-    it 'sets the person to a friend if person_id is set' do
+    it 'sets the person to a contact if person_id is set' do
       get :index, :person_id => user2.person.id.to_s
       
       assigns[:person].should == user2.person
@@ -58,6 +58,7 @@ describe PhotosController do
   describe '#show' do
     it 'assigns the photo based on the photo id' do
       get :show, :id => photo.id
+      response.code.should == "200"
 
       assigns[:photo].should == photo
       assigns[:ownership].should == true 

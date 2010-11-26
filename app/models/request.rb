@@ -10,37 +10,42 @@ class Request
   include Diaspora::Webhooks
   include ROXML
 
-  xml_reader :diaspora_handle
-  xml_reader :destination_url
-  xml_reader :callback_url
+  xml_reader :sender_handle
+  xml_reader :recipient_handle
 
-  key :aspect_id,       ObjectId
-  key :destination_url, String
-  key :callback_url,    String
-  key :exported_key,    String
+  belongs_to :into, :class => Aspect
+  belongs_to :from, :class => Person
+  belongs_to :to,   :class => Person
+  key :sent,                  Boolean, :default => false
 
-  key :diaspora_handle, String
+  validates_presence_of :from, :to
+  validate :not_already_connected, :if => :sent
+  validate :no_pending_request, :if => :sent
+  
+  #before_validation :clean_link
+  
+  scope :from, lambda { |person| 
+    target = (person.is_a?(User) ? person.person : person)
+    where(:from_id => target.id)
+  }
+  
+  scope :to, lambda { |person| 
+    target = (person.is_a?(User) ? person.person : person)
+    where(:to_id => target.id)
+  }
 
-  belongs_to :person
 
-  validates_presence_of :destination_url, :callback_url
-  before_validation :clean_link
-
-  def self.instantiate(options = {})
-    person = options[:from]
-    self.new(:person_id       => person.id,
-             :destination_url => options[:to],
-             :callback_url    => person.receive_url,
-             :diaspora_handle => person.diaspora_handle,
-             :aspect_id       => options[:into])
+  def self.instantiate(opts = {})
+    self.new(:from => opts[:from],
+             :to   => opts[:to],
+             :into => opts[:into],
+             :sent => true)
   end
 
   def reverse_for accepting_user
     Request.new(
-      :diaspora_handle => accepting_user.diaspora_handle,
-      :destination_url => self.callback_url,
-      :callback_url    => self.destination_url,
-      :person_id => accepting_user.person.id
+      :from => accepting_user.person,
+      :to => self.from
     )
   end
 
@@ -61,13 +66,34 @@ class Request
     Notifier.new_request(user_id, person_id).deliver
   end
 
+  def sender_handle
+    from.diaspora_handle
+  end
+  def sender_handle= sender_handle
+    self.from = Person.first(:diaspora_handle => sender_handle)
+  end
 
-protected
-  def clean_link
-    if self.destination_url
-      self.destination_url = self.destination_url.strip
-      self.destination_url = 'http://' + self.destination_url unless self.destination_url.match('https?://')
-      self.destination_url = self.destination_url + '/' if self.destination_url[-1,1] != '/'
+  def recipient_handle
+    to.diaspora_handle
+  end
+  def recipient_handle= recipient_handle
+    self.to = Person.first(:diaspora_handle => recipient_handle)
+  end
+
+  def diaspora_handle
+    self.from.diaspora_handle
+  end
+
+  private
+  def no_pending_request
+    if Request.first(:from_id => from_id, :to_id => to_id)
+      errors[:base] << 'You have already sent a request to that person'
+    end
+  end
+
+  def not_already_connected
+    if Contact.first(:user_id => self.from.owner_id, :person_id => self.to_id)
+      errors[:base] << 'You have already connected to this person!'
     end
   end
 end

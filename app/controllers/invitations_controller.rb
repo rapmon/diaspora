@@ -8,30 +8,43 @@ class InvitationsController < Devise::InvitationsController
 
 
   def create
+      if current_user.invites == 0
+        flash[:error] = I18n.t 'invitations.create.no_more'
+        redirect_to :back
+        return
+      end
     begin
       params[:user][:aspect_id] = params[:user].delete(:aspects)
       message = params[:user].delete(:invite_messages)
       params[:user][:invite_message] = message unless message == ""
-      self.resource = current_user.invite_user(params[resource_name])
-      flash[:notice] = I18n.t 'invitations.create.sent'
+
+      emails = params[:user][:email].split(/, */)
+      invited_users = emails.map { |e| current_user.invite_user(params[:user].merge({:email => e}))}
+      good_users, rejected_users = invited_users.partition {|u| u.persisted? }
+
+      flash[:notice] = I18n.t('invitations.create.sent') + good_users.map{|x| x.email}.join(', ')
+      if rejected_users.any?
+        flash[:error] = I18n.t('invitations.create.rejected') + rejected_users.map{|x| x.email}.join(', ')
+      end
     rescue RuntimeError => e
       if  e.message == "You have no invites"
         flash[:error] = I18n.t 'invitations.create.no_more'
       elsif e.message == "You already invited this person"
         flash[:error] = I18n.t 'invitations.create.already_sent'
-      elsif e.message == "You are already friends with this person"
-        flash[:error] = I18n.t 'invitations.create.already_friends'
+      elsif e.message == "You are already connected to this person"
+        flash[:error] = I18n.t 'invitations.create.already_contacts'
       else
         raise e
       end
     end
-    redirect_to after_sign_in_path_for(resource_name)
+    redirect_to :back 
   end
 
   def update
     begin
-      user = User.find_by_invitation_token(params["user"]["invitation_token"])
-      user.accept_invitation!(params["user"])
+      user = User.find_by_invitation_token(params[:user][:invitation_token])
+      user.seed_aspects
+      user.accept_invitation!(params[:user])
     rescue MongoMapper::DocumentNotValid => e
       user = nil
       flash[:error] = e.message
@@ -40,14 +53,15 @@ class InvitationsController < Devise::InvitationsController
       flash[:notice] = I18n.t 'registrations.create.success'
       sign_in_and_redirect(:user, user)
     else
-      redirect_to new_user_registration_path
+      redirect_to accept_user_invitation_path(
+        :invitation_token => params[:user][:invitation_token])
     end
   end
 
   protected
 
   def check_token
-    if User.find_by_invitation_token(params['invitation_token']).nil?
+    if User.find_by_invitation_token(params[:invitation_token]).nil?
       flash[:error] = I18n.t 'invitations.check_token.not_found'
       redirect_to root_url
     end

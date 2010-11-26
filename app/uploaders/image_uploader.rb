@@ -12,7 +12,7 @@ class ImageUploader < CarrierWave::Uploader::Base
   end
 
   def extension_white_list
-    %w(jpg jpeg gif png)
+    %w(jpg jpeg png)
   end
 
   def filename
@@ -30,7 +30,7 @@ class ImageUploader < CarrierWave::Uploader::Base
   end
 
   version :thumb_large do
-    process :resize_to_fill => [200,200]
+    process :resize_to_fill => [300,300]
   end
 
   version :scaled_full do

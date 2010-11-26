@@ -26,15 +26,15 @@ module HelperMethods
     User::QUEUE
   end
 
-  def friend_users(user1, aspect1, user2, aspect2)
-    request = user1.send_friend_request_to(user2.person, aspect1)
+  def connect_users(user1, aspect1, user2, aspect2)
+    user1.send_contact_request_to(user2.person, aspect1)
 
     user1.reload
     aspect1.reload
     user2.reload
     aspect2.reload
 
-    new_request = user2.pending_requests.find_by_destination_url!(user2.receive_url)
+    new_request = user2.pending_requests.find_by_from_id!(user1.person.id)
 
     user1.reload
     aspect1.reload

@@ -9,7 +9,7 @@ class AspectsController < ApplicationController
   respond_to :json, :only => :show
 
   def index
-    @posts = current_user.visible_posts(:by_members_of => :all).paginate :page => params[:page], :per_page => 15, :order => 'created_at DESC'
+    @posts  = current_user.visible_posts(:_type => "StatusMessage").paginate :page => params[:page], :per_page => 15, :order => 'created_at DESC'
     @aspect = :all
     
     if current_user.getting_started == true
@@ -20,8 +20,14 @@ class AspectsController < ApplicationController
   def create
     @aspect = current_user.aspects.create(params[:aspect])
     if @aspect.valid?
-      flash[:notice] = I18n.t('aspects.create.success')
-      respond_with @aspect
+      flash[:notice] = I18n.t('aspects.create.success', :name => @aspect.name)
+      if current_user.getting_started
+        redirect_to :back
+      elsif request.env['HTTP_REFERER'].include?("aspects/manage")
+        redirect_to :back
+      else
+        respond_with @aspect
+      end
     else
       flash[:error] = I18n.t('aspects.create.failure')
       redirect_to :back
@@ -50,8 +56,8 @@ class AspectsController < ApplicationController
     unless @aspect
       render :file => "#{Rails.root}/public/404.html", :layout => false, :status => 404
     else
-      @friends = @aspect.person_objects
-      @posts   = current_user.visible_posts( :by_members_of => @aspect ).paginate :per_page => 15, :order => 'created_at DESC'
+      @aspect_contacts = @aspect.contacts
+      @posts = @aspect.posts.find_all_by__type("StatusMessage", :order => 'created_at desc').paginate :per_page => 15
       respond_with @aspect
     end
   end
@@ -69,39 +75,55 @@ class AspectsController < ApplicationController
     respond_with @aspect
   end
 
-  def move_friend
-    unless current_user.move_friend( :friend_id => params[:friend_id], :from => params[:from], :to => params[:to][:to])
-      flash[:error] = I18n.t 'aspects.move_friend.error',:inspect => params.inspect
+  def move_contact
+    unless current_user.move_contact( :person_id => params[:person_id], :from => params[:from], :to => params[:to][:to])
+      flash[:error] = I18n.t 'aspects.move_contact.error',:inspect => params.inspect
     end
     if aspect = current_user.aspect_by_id(params[:to][:to])
-      flash[:notice] = I18n.t 'aspects.move_friend.success'
+      flash[:notice] = I18n.t 'aspects.move_contact.success'
       render :nothing => true
     else
-      flash[:notice] = I18n.t 'aspects.move_friend.failure'
+      flash[:notice] = I18n.t 'aspects.move_contact.failure'
       render aspects_manage_path
     end
   end
 
   def add_to_aspect
-    if current_user.add_person_to_aspect( params[:friend_id], params[:aspect_id])
-      flash[:notice] =  I18n.t 'aspects.add_to_aspect.success'
-    else 
-      flash[:error] =  I18n.t 'aspects.add_to_aspect.failure'
-    end
+    begin current_user.add_person_to_aspect( params[:person_id], params[:aspect_id])
+      @person_id = params[:person_id]
+      @aspect_id = params[:aspect_id]
+      flash.now[:notice] =  I18n.t 'aspects.add_to_aspect.success'
 
-    if params[:manage]
-      redirect_to aspects_manage_path
-    else
-      redirect_to aspect_path(params[:aspect_id])
+      respond_to do |format|
+        format.js { render :status => 200 }
+        format.html{ redirect_to aspect_path(@aspect_id)}
+      end
+    rescue Exception => e
+      flash.now[:error] =  I18n.t 'aspects.add_to_aspect.failure'
+      respond_to do |format|
+        format.js  { render :text => e, :status => 403 }
+        format.html{ redirect_to aspect_path(@aspect_id)}
+      end
     end
   end
 
   def remove_from_aspect
-    if current_user.delete_person_from_aspect( params[:friend_id], params[:aspect_id])
-      flash[:notice] =  I18n.t 'aspects.remove_from_aspect.success'
-    else 
-      flash[:error] =  I18n.t 'aspects.remove_from_aspect.failure'
+    begin current_user.delete_person_from_aspect(params[:person_id], params[:aspect_id])
+      @person_id = params[:person_id]
+      @aspect_id = params[:aspect_id]
+      flash.now[:notice] = I18n.t 'aspects.remove_from_aspect.success'
+
+      respond_to do |format|
+        format.js { render :status => 200 }
+        format.html{ redirect_to aspect_path(@aspect_id)}
+      end
+    rescue Exception => e
+      flash.now[:error] = I18n.t 'aspects.remove_from_aspect.failure'
+
+      respond_to do |format|
+        format.js  { render :text => e, :status => 403 }
+        format.html{ redirect_to aspect_path(@aspect_id)}
+      end
     end
-    redirect_to aspects_manage_path
   end
 end

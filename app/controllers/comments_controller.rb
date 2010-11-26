@@ -3,6 +3,7 @@
 #   the COPYRIGHT file.
 
 class CommentsController < ApplicationController
+  include ApplicationHelper
   before_filter :authenticate_user!
 
   respond_to :html
@@ -14,9 +15,17 @@ class CommentsController < ApplicationController
 
     @comment = current_user.comment(text, :on => target) if target
     if @comment
-      render :nothing => true, :status => 201
+      Rails.logger.info("event=comment_create user=#{current_user.diaspora_handle} status=success comment=#{@comment.inspect}")
+
+      respond_to do |format|
+        format.js{ render :json => { :post_id => @comment.post_id,
+                                     :comment_id => @comment.id,
+                                     :html => render_to_string(:partial => type_partial(@comment), :locals => {:comment => @comment, :person => current_user, :current_user => current_user})},
+                                     :status => 201 }
+        format.html{ render :nothing => true, :status => 201 }
+      end
     else
-      render :nothing => true, :status => 401
+      render :nothing => true, :status => 406
     end
   end
 

@@ -7,18 +7,6 @@ require File.expand_path('../application', __FILE__)
 Haml::Template.options[:format] = :html5
 Haml::Template.options[:escape_html] = true
 
-if File.exists?(File.expand_path("./config/fb_config.yml"))
-  # Load facebook connection application credentials
-  fb_config  = YAML::load(File.open(File.expand_path("./config/fb_config.yml")))
-  FB_API_KEY = fb_config['fb_api_key']
-  FB_SECRET  = fb_config['fb_secret']
-  FB_APP_ID  = fb_config['fb_app_id']
-  HOST       = fb_config['host']
-  FACEBOOK   = true
-else
-  FACEBOOK   = false
-end
-
 if File.exists?(File.expand_path("./config/languages.yml"))
   languages = YAML::load(File.open(File.expand_path("./config/languages.yml")))
   AVAILABLE_LANGUAGES = (languages['available'].length > 0) ? languages['available'] : { :en => 'English' }
@@ -28,6 +16,12 @@ else
   AVAILABLE_LANGUAGES = { :en => 'English' }
   DEFAULT_LANGUAGES = 'en'
   AVAILABLE_LANGUAGE_CODES = ['en']
+end
+
+if File.exists?(File.expand_path("./config/langcodes_alias_map.yml"))
+  LANGUAGE_CODES_MAP = YAML::load(File.open(File.expand_path("./config/langcodes_alias_map.yml")))
+else
+  LANGUAGE_CODES_MAP = {}
 end
 
 # Initialize the rails application

@@ -1,4 +1,4 @@
-#   Copyright (c) 2010, Diaspora Inc.  This file is
+#   Copyright (c) 2009, Diaspora Inc.  This file is
 #   licensed under the Affero General Public License version 3 or later.  See
 #   the COPYRIGHT file.
 
@@ -9,17 +9,32 @@ class Photo < Post
 
   xml_accessor :remote_photo
   xml_accessor :caption
+  xml_reader :status_message_id
 
   key :caption,  String
   key :remote_photo_path
   key :remote_photo_name
   key :random_string
 
+  key :status_message_id, ObjectId
+  
   timestamps!
 
+  belongs_to :status_message
+
   attr_accessible :caption
+  validate :ownership_of_status_message
 
   before_destroy :ensure_user_picture
+
+  def ownership_of_status_message
+    message = StatusMessage.find_by_id(self.status_message_id)
+    if status_message_id && message 
+      self.diaspora_handle == message.diaspora_handle 
+    else
+      true
+    end
+  end
 
   def self.instantiate(params = {})
     photo = super(params)
@@ -50,7 +65,7 @@ class Photo < Post
   end
 
   def ensure_user_picture
-    people = Person.all('profile.image_url' => absolute_url(:thumb_medium) )
+    people = Person.all('profile.image_url' => absolute_url(:thumb_large) )
     people.each{ |person|
       person.profile.update_attributes(:image_url => nil)
     }
@@ -76,5 +91,16 @@ class Photo < Post
     1.upto(len) { |i| string << chars[rand(chars.size-1)] }
     return string
   end
+
+  def as_json(opts={})
+    {
+      :photo => {
+        :id => self.id,
+        :url => self.url(:thumb_medium),
+        :caption => self.caption
+      }
+    }
+  end
+  
 end
 

@@ -2,16 +2,24 @@
 -#   licensed under the Affero General Public License version 3 or later.  See
 -#   the COPYRIGHT file.
 
-.span-4.append-1.last
-  = render 'shared/aspect_friends', :people => @friends, :aspect => @aspect
+.span-24.last
+  %h2{:style => "position:relative;"}
+    = current_user.real_name
+    .right{:style=>"top:0"}
+      %span.description
+        = current_user.diaspora_handle
+        = info_text(t('.handle_explanation'))
 
-.span-15.last
-  = render 'aspects/no_friends_message', :aspect => @aspect, :friend_count => @friends.count
+.span-15
+  = render 'aspects/no_contacts_message', :aspect => @aspect, :contact_count => @contacts.count
   = render 'shared/publisher', :aspect => @aspect
-  = render 'aspects/no_posts_message', :post_count => @posts.count, :friend_count => @friends.count
+  = render 'aspects/no_posts_message', :post_count => @posts.count, :contact_count => @contacts.count
 
   = render 'shared/stream', :posts => @posts
 
   #pagination
     = will_paginate @posts
+
+.span-8.prepend-1.last
+  = render 'shared/aspect_contacts', :contacts => @contacts, :aspect => @aspect
 

@@ -8,22 +8,49 @@ describe AspectsController do
   render_views
 
   before do
-    @user    = make_user
-    @aspect  = @user.aspects.create(:name => "lame-os")
-    @aspect1 = @user.aspects.create(:name => "another aspect")
-    @user2   = make_user
-    @aspect2 = @user2.aspects.create(:name => "party people")
-    friend_users(@user,@aspect, @user2, @aspect2)
-    @contact = @user.contact_for(@user2.person)
+    @user  = make_user
+    @user2 = make_user
+
+    @aspect   = @user.aspects.create(:name => "lame-os")
+    @aspect1  = @user.aspects.create(:name => "another aspect")
+    @aspect2  = @user2.aspects.create(:name => "party people")
+
+    connect_users(@user, @aspect, @user2, @aspect2)
+
+    @contact                    = @user.contact_for(@user2.person)
+    @user.getting_started = false
+    @user.save
     sign_in :user, @user
     request.env["HTTP_REFERER"] = 'http://' + request.host
   end
 
   describe "#index" do
-    it "assigns @friends to all the user's friends" do
+    it "assigns @contacts to all the user's contacts" do
       Factory.create :person
       get :index
-      assigns[:friends].should == @user.person_objects
+      assigns[:contacts].should == @user.contacts
+    end
+    context 'performance' do
+      before do
+        require 'benchmark'
+        @posts = []
+        @users = []
+        8.times do |n|
+          user = make_user
+          @users << user
+          aspect = user.aspects.create(:name => 'people')
+          connect_users(@user, @aspect, user, aspect)
+          post =  @user.post(:status_message, :message => "hello#{n}", :to => @aspect1.id)
+          @posts << post
+          user.comment "yo#{post.message}", :on => post
+        end
+      end
+
+      it 'takes time' do
+        Benchmark.realtime{
+          get :index
+        }.should < 3
+      end
     end
   end
 
@@ -52,13 +79,51 @@ describe AspectsController do
     end
   end
 
-  describe "#move_friend" do
-    let(:opts) { {:friend_id => "person_id", :from => "from_aspect_id", :to => {:to => "to_aspect_id"}}}
-    it 'calls the move_friend_method' do
-      pending "need to figure out what is the deal with remote requests" 
+  describe "#manage" do
+    it "succeeds" do
+      get :manage
+      response.should be_success
+    end
+    it "assigns aspect to manage" do
+      get :manage
+      assigns(:aspect).should == :manage
+    end
+    it "assigns remote_requests" do
+      get :manage
+      assigns(:remote_requests).should be_empty
+    end
+    context "when the user has pending requests" do
+      before do
+        requestor        = make_user
+        requestor_aspect = requestor.aspects.create(:name => "Meh")
+        requestor.send_contact_request_to(@user.person, requestor_aspect)
+
+        requestor.reload
+        requestor_aspect.reload
+        @user.reload
+      end
+      it "succeeds" do
+        get :manage
+        response.should be_success
+      end
+      it "assigns aspect to manage" do
+        get :manage
+        assigns(:aspect).should == :manage
+      end
+      it "assigns remote_requests" do
+        get :manage
+        assigns(:remote_requests).count.should == 1
+      end
+    end
+  end
+
+  describe "#move_contact" do
+    let(:opts) { {:person_id => "person_id", :from => "from_aspect_id", :to => {:to => "to_aspect_id"}} }
+    it 'calls the move_contact_method' do
+      pending "need to figure out what is the deal with remote requests"
       @controller.stub!(:current_user).and_return(@user)
-      @user.should_receive(:move_friend).with( :friend_id => "person_id", :from => "from_aspect_id", :to => "to_aspect_id")
-      post :move_friend, opts
+      @user.should_receive(:move_contact).with(:person_id => "person_id", :from => "from_aspect_id", :to => "to_aspect_id")
+      post :move_contact, opts
     end
   end
 
@@ -67,8 +132,8 @@ describe AspectsController do
       @aspect = @user.aspects.create(:name => "Bruisers")
     end
     it "doesn't overwrite random attributes" do
-      new_user = Factory.create :user
-      params = {"name" => "Bruisers"}
+      new_user         = Factory.create :user
+      params           = {"name" => "Bruisers"}
       params[:user_id] = new_user.id
       put('update', :id => @aspect.id, "aspect" => params)
       Aspect.find(@aspect.id).user_id.should == @user.id
@@ -78,20 +143,22 @@ describe AspectsController do
   describe "#add_to_aspect" do
     it 'adds the users to the aspect' do
       @aspect1.reload
-      @aspect1.people.include?(@contact).should be false
-      post 'add_to_aspect', {:friend_id => @user2.person.id, :aspect_id => @aspect1.id }
+      @aspect1.contacts.include?(@contact).should be_false
+      post 'add_to_aspect', {:person_id => @user2.person.id, :aspect_id => @aspect1.id}
       @aspect1.reload
-      @aspect1.people.include?(@contact).should be true
+      @aspect1.contacts.include?(@contact).should be_true
     end
-  end 
-  
+  end
+
   describe "#remove_from_aspect" do
-    it 'adds the users to the aspect' do
+    it 'removes contacts from an aspect' do
+      pending 'this needs to test with another aspect present'
+
       @aspect.reload
-      @aspect.people.include?(@contact).should be true
-      post 'remove_from_aspect', {:friend_id => @user2.person.id, :aspect_id => @aspect1.id }
+      @aspect.contacts.include?(@contact).should be true
+      post 'remove_from_aspect', {:person_id => @user2.person.id, :aspect_id => @aspect1.id}
       @aspect1.reload
-      @aspect1.people.include?(@contact).should be false
+      @aspect1.contacts.include?(@contact).should be false
     end
   end
 end

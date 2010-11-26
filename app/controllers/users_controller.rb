@@ -63,7 +63,7 @@ class UsersController < ApplicationController
 
       render :xml => director.build(ostatus_builder), :content_type => 'application/atom+xml'
     else
-      flash[:error] = I18n.t 'users.public.does_not_exists', :username => params[:username]
+      flash[:error] = I18n.t 'users.public.does_not_exist', :username => params[:username]
       redirect_to root_url
     end
   end
@@ -74,6 +74,7 @@ class UsersController < ApplicationController
     @person   = @user.person
     @profile  = @user.profile
     @services = @user.services
+    @requests = @user.pending_requests
 
     @step = ((params[:step].to_i>0)&&(params[:step].to_i<5)) ? params[:step].to_i : 1
     @step ||= 1
@@ -94,9 +95,4 @@ class UsersController < ApplicationController
     tar_path = PhotoMover::move_photos(current_user)
     send_data( File.open(tar_path).read, :filename => "#{current_user.id}.tar" )
   end
-
-  def invite
-    User.invite!(:email => params[:email])
-  end
-  
 end

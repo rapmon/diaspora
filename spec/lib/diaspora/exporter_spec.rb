@@ -44,7 +44,7 @@ describe Diaspora::Exporter do
   context '<contacts/>' do
 
     before do
-      friend_users(user1, aspect1, user3, aspect3)
+      connect_users(user1, aspect1, user3, aspect3)
       user1.add_person_to_aspect(user3.person.id, aspect.id)
       user1.reload
     end
@@ -56,8 +56,8 @@ describe Diaspora::Exporter do
 
     it 'should include an aspects names of all aspects they are in' do
       #contact specific xml needs to be tested
-      user1.friends.find_by_person_id(user3.person.id).aspects.count.should > 0
-      user1.friends.find_by_person_id(user3.person.id).aspects.each { |aspect|
+      user1.contacts.find_by_person_id(user3.person.id).aspects.count.should > 0
+      user1.contacts.find_by_person_id(user3.person.id).aspects.each { |aspect|
         contacts_xml.should include aspect.name
       }
     end
@@ -66,7 +66,7 @@ describe Diaspora::Exporter do
   context '<people/>' do
     let(:people_xml) {exported.xpath('//people').to_s}
     before do
-      friend_users(user1, aspect1, user3, aspect3)
+      connect_users(user1, aspect1, user3, aspect3)
       user1.reload
     end
     it 'should include persons id' do

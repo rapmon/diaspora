@@ -44,31 +44,33 @@ describe 'making sure the spec runner works' do
     end
   end
 
-   describe '#friend_users' do
+   describe '#connect_users' do
     before do
       @user1 = make_user
       @aspect1 = @user1.aspects.create(:name => "losers")
       @user2 = make_user
       @aspect2 = @user2.aspects.create(:name => "bruisers")
-      friend_users(@user1, @aspect1, @user2, @aspect2)
+      connect_users(@user1, @aspect1, @user2, @aspect2)
     end
 
-    it 'makes the first user friends with the second' do
+    it 'connects the first user to the second' do
       contact = @user1.contact_for @user2.person
-      @user1.friends.include?(contact).should be_true
-      @aspect1.people.include?(contact).should be_true
+      contact.should_not be_nil
+      @user1.contacts.include?(contact).should be_true
+      @aspect1.contacts.include?(contact).should be_true
       contact.aspects.include?( @aspect1 ).should be true
     end
 
-    it 'makes the second user friends with the first' do
+    it 'connects the second user to the first' do
       contact = @user2.contact_for @user1.person
-      @user2.friends.include?(contact).should be_true
-      @aspect2.people.include?(contact).should be_true
+      contact.should_not be_nil
+      @user2.contacts.include?(contact).should be_true
+      @aspect2.contacts.include?(contact).should be_true
       contact.aspects.include?( @aspect2 ).should be true
     end
 
     it 'allows posting after running' do
-      message = @user1.post(:status_message, :message => "Friendship!", :to => @aspect1.id)
+      message = @user1.post(:status_message, :message => "Connection!", :to => @aspect1.id)
       @user2.reload.visible_posts.should include message
     end
   end

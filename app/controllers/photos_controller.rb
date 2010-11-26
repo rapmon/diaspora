@@ -11,7 +11,7 @@ class PhotosController < ApplicationController
   def index
     @aspect = :profile
     @post_type = :photos
-    @person = Person.find(params[:person_id].to_id)
+    @person = Person.find_by_id(params[:person_id])
 
     if @person
       @profile = @person.profile
@@ -20,11 +20,10 @@ class PhotosController < ApplicationController
 
       if @contact
         @aspects_with_person = @contact.aspects
-      else
-        @pending_request = current_user.pending_requests.find_by_person_id(@person.id)
       end
 
-      @posts = current_user.visible_posts(:_type => 'Photo', :person_id => @person.id).paginate :page => params[:page], :order => 'created_at DESC'
+      @posts = current_user.raw_visible_posts.all(:_type => 'Photo', :person_id => @person.id, :order => 'created_at DESC').paginate :page => params[:page], :order => 'created_at DESC'
+
       render 'people/show'
 
     else
@@ -34,7 +33,6 @@ class PhotosController < ApplicationController
   end
 
   def create
-
     begin
       params[:photo][:user_file] = file_handler(params)
 
@@ -43,9 +41,9 @@ class PhotosController < ApplicationController
       if @photo.save
         raise 'MongoMapper failed to catch a failed save' unless @photo.id
 
-        current_user.dispatch_post(@photo, :to => params[:photo][:to])
+        current_user.dispatch_post(@photo, :to => params[:photo][:to]) unless @photo.pending
         respond_to do |format|
-          format.json{render(:layout => false , :json => {"success" => true, "data" => @photo}.to_json )}
+          format.json{ render(:layout => false , :json => {"success" => true, "data" => @photo}.to_json )}
         end
       else
         respond_with :location => photos_path, :error => message
@@ -77,9 +75,16 @@ class PhotosController < ApplicationController
     if photo
       photo.destroy
       flash[:notice] = I18n.t 'photos.destroy.notice'
-    end
 
-    respond_with :location => photos_path
+      if photo.status_message_id
+        respond_with :location => photo.status_message
+      else
+        respond_with :location => photos_path
+      end
+    else
+      respond_with :location => photos_path
+    end
+   
   end
 
   def show
@@ -106,11 +111,16 @@ class PhotosController < ApplicationController
     photo = current_user.my_posts.where(:_id => params[:id]).first
     if photo
       if current_user.update_post( photo, params[:photo] )
-        flash[:notice] = I18n.t 'photos.update.notice'
-        respond_with photo
+        flash.now[:notice] = I18n.t 'photos.update.notice'
+        respond_to do |format|
+          format.js{ render :json => photo, :status => 200 }
+        end
       else
-        flash[:error] = I18n.t 'photos.update.error'
-        redirect_to [:edit, photo]
+        flash.now[:error] = I18n.t 'photos.update.error'
+        respond_to do |format|
+          format.html{ redirect_to [:edit, photo] }
+          format.js{ render :status => 403 }
+        end
       end
     else
       redirect_to person_photos_path(current_user.person)

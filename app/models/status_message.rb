@@ -3,13 +3,15 @@
 #   the COPYRIGHT file.
 
 class StatusMessage < Post
+  include Diaspora::Socketable
   
   validates_length_of :message, :maximum => 1000, :message => "please make your status messages less than 1000 characters"
   xml_name :status_message
-  xml_accessor :message
+  xml_reader :message
 
   key :message, String
-  validates_presence_of :message
+  many :photos, :class => Photo, :foreign_key => :status_message_id
+  validate :message_or_photos_present?
 
   attr_accessible :message
 
@@ -26,5 +28,14 @@ class StatusMessage < Post
   </entry>
         XML
   end
+
+  protected
+
+  def message_or_photos_present?
+    unless !self.message.blank? || self.photos.count > 0
+      errors[:base] << 'Status message requires a message or at least one photo'
+    end
+  end
+
 end
 

@@ -4,6 +4,14 @@
 
 module PeopleHelper
 
+  def request_partial single_aspect_form
+    if single_aspect_form
+      'requests/new_request_with_aspect_to_person'
+    else
+      'requests/new_request_to_person'
+    end
+  end
+
   def search_or_index
     if params[:q]
       I18n.t 'people.helper.results_for',:params => params[:q]
@@ -14,10 +22,14 @@ module PeopleHelper
 
   def action_link(person, is_contact)
     if is_contact
-      link_to t('.remove_friend'), person, :confirm => t('are_you_sure'), :method => :delete
+      link_to t('people.profile_sidebar.remove_contact'), person, :confirm => t('are_you_sure'), :method => :delete
     elsif person == current_user.person
-      link_to t('.edit_my_profile'), edit_person_path(person)
+      link_to t('people.profile_sidebar.edit_my_profile'), edit_person_path(person)
     end
+  end
+
+  def pending_request_for(person)
+    current_user.request_for(person)
   end
 
 end

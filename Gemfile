@@ -1,18 +1,21 @@
 source 'http://rubygems.org'
 
-gem 'rails', '>= 3.0.0'
+gem 'rails', '3.0.1'
 
 gem 'bundler', '>= 1.0.0'
 gem "chef", :require => false
 
+gem "nokogiri", "1.4.3.1"
+
 #Security
 gem 'devise', '1.1.3'
 gem 'devise-mongo_mapper', :git => 'git://github.com/collectiveidea/devise-mongo_mapper'
-gem 'devise_invitable', '~> 0.3.4'
+gem 'devise_invitable','0.3.5'
 
 #Authentication
 gem 'omniauth'
-gem 'twitter'
+gem 'twitter', '0.9.12'
+
 #Mongo
 gem 'mongo_mapper', :branch => 'rails3', :git => 'git://github.com/jnunemaker/mongomapper.git'
 gem 'bson_ext', '1.1'
@@ -26,7 +29,6 @@ gem 'will_paginate', '3.0.pre2'
 gem 'roxml', :git => 'git://github.com/Empact/roxml.git'
 gem 'addressable', :require => 'addressable/uri'
 gem 'json'
-gem 'mini_fb'
 gem 'http_accept_language', :git => 'git://github.com/iain/http_accept_language.git'
 
 #Standards
@@ -37,13 +39,18 @@ gem 'em-http-request',:ref => 'bf62d67fc72d6e701be5',  :git => 'git://github.com
 gem 'thin'
 
 #Websocket
-gem 'em-websocket'
+gem 'em-websocket', :git => 'git://github.com/igrigorik/em-websocket'
 gem 'magent', :git => 'git://github.com/dcu/magent.git'
 
 #File uploading
 gem 'carrierwave', :git => 'git://github.com/rsofaer/carrierwave.git' , :branch => 'master' #Untested mongomapper branch
 gem 'mini_magick'
 gem 'aws'
+gem 'fastercsv', :require => false
+gem 'jammit'
+
+#Backups
+gem "cloudfiles", :require => false
 
 group :test, :development do
   gem 'factory_girl_rails'
@@ -62,8 +69,9 @@ group :test do
   gem 'webmock', :require => false
   gem 'jasmine', :path => 'vendor/gems/jasmine', :require => false
   gem 'mongrel', :require => false if RUBY_VERSION.include? "1.8"
+  gem 'rspec-instafail', :require => false
 end
 
 group :deployment do
-  gem 'sprinkle', :git => 'git://github.com/rsofaer/sprinkle.git'
+  #gem 'sprinkle', :git => 'git://github.com/rsofaer/sprinkle.git'
 end

@@ -6,7 +6,7 @@
 var AspectEdit = {
 
   initialize: function() {
-    $("ul .person").draggable({
+    $("ul .person.request").draggable({
       revert: true,
       start: AspectEdit.startDrag,
       drag: AspectEdit.duringDrag,
@@ -50,42 +50,51 @@ var AspectEdit = {
         type: "DELETE",
         url: "/requests/" + person.attr('data-guid'),
         data: {"accept" : true, "aspect_id" : dropzone.attr('data-aspect_id') },
-        success: function(data) {
-          AspectEdit.decrementRequestsCounter();
-          person.removeClass('request');
-        }
+        success: function() { AspectEdit.onDeleteRequestSuccess(person, dropzone); }
       });
     }
 
-    if (dropzone.attr('data-aspect_id') != person.attr('data-aspect_id')) {
+    if (person.attr('data-aspect_id') != undefined && // a request doesn't have a data-aspect_id, but an existing contact does
+        dropzone.attr('data-aspect_id') != person.attr('data-aspect_id')) {
       $.ajax({
-        url: "/aspects/move_friend/",
-        data: {"friend_id" : person.attr('data-guid'),
+        url: "/aspects/move_contact/",
+        data: {
+          "person_id" : person.attr('data-guid'),
           "from"      : person.attr('data-aspect_id'),
-          "to"        : { "to" : dropzone.attr('data-aspect_id') }},
-        success: function(data) {
-          person.attr('data-aspect_id', dropzone.attr('data-aspect_id'));
-        }});
+          "to"        : { "to" : dropzone.attr('data-aspect_id') }
+        },
+        success: function() { AspectEdit.onMovePersonSuccess(person, dropzone); }
+      });
     }
 
     dropzone.closest("ul").append(person);
   },
 
+  onDeleteRequestSuccess: function(person, dropzone) {
+    AspectEdit.decrementRequestsCounter();
+    person.removeClass('request');
+    person.attr('data-aspect_id', dropzone.attr('data-aspect_id'));
+    person.removeAttr('data-person_id');
+  },
+  
+  onMovePersonSuccess: function(person, dropzone) {
+    person.attr('data-aspect_id', dropzone.attr('data-aspect_id'));
+  },
+        
   deletePersonFromAspect: function(person) {
-
     var person_id = person.attr('data-guid');
 
     if( $(".person[data-guid='"+ person_id +"']").length == 1) {
-      alert("You can not remove the person from the last aspect");
-
-    } else {
+      AspectEdit.alertUser("You cannot remove the person from the last aspect");
+    } 
+    else {
       if (!person.hasClass('request')) {
 
         $.ajax({
           type: "POST",
           url: "/aspects/remove_from_aspect",
           data:{
-            'friend_id' : person_id,
+            'person_id' : person_id,
             'aspect_id' : person.attr('data-aspect_id') }
         });
       }
@@ -131,6 +140,9 @@ var AspectEdit = {
           type: "DELETE",
           url: "/requests/" + request_id,
           success: function () {
+            person.fadeOut(400, function() {
+              person.remove();
+            });
             AspectEdit.decrementRequestsCounter();
           }
         });
@@ -166,6 +178,10 @@ var AspectEdit = {
         request_html.replace(/\d+/, old_request_count - 1)
         );
     }
+  },
+  
+  alertUser: function(message) {
+    alert(message);
   }
 };
 

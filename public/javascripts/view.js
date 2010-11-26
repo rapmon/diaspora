@@ -3,7 +3,6 @@
 *   the COPYRIGHT file.
 */
 
-
 $(document).ready(function(){
   $('#debug_info').click(function() {
     $('#debug_more').toggle('fast');
@@ -13,13 +12,13 @@ $(document).ready(function(){
 
   $('#flash_notice, #flash_error, #flash_alert').animate({
     top: 0
-  }).delay(4000).animate({
+  }).delay(2000).animate({
     top: -100 
   }, $(this).remove());
 
   //buttons//////
   $(".add_aspect_button," + 
-    ".add_request_button," +
+    ".manage_aspect_contacts_button," +
     ".invite_user_button," +
     ".add_photo_button," +
     ".remove_person_button," +
@@ -27,16 +26,22 @@ $(document).ready(function(){
 
   $("input[type='submit']").addClass("button");
 
-  $(".image_cycle img").load( function() {
-    $(this).fadeIn("slow");
+  $("#q").focus(
+    function() {
+      $(this).addClass('active');
+    }
+  );
+
+  $('.new_request').live("submit", function(){
+    var foo = $(this).parent();
+    $(this).hide();
+    foo.find('.message').removeClass('hidden');
   });
 
-  $("#global_search").hover(
+
+  $("#q").blur(
     function() {
-      $(this).fadeTo('fast', '1');
-    },
-    function() {
-      $(this).fadeTo('fast', '0.5');
+      $(this).removeClass('active');
     }
   );
 
@@ -46,7 +51,7 @@ $(document).ready(function(){
     }
   });
 
-  $("#stream").delegate("textarea.comment_box", "keydown", function(e){
+  $(".stream").delegate("textarea.comment_box", "keydown", function(e){
     if (e.keyCode === 13) {
       $(this).closest("form").submit();
     }
@@ -71,6 +76,22 @@ $(document).ready(function(){
   $(".add_aspect_button", "#aspect_nav").tipsy({gravity:'w'});
   $(".person img", ".dropzone").tipsy({live:true});
   $(".avatar", ".aspects").tipsy({live:true});
+  $(".what_is_this").tipsy({live:true,delayIn:400});
+
+  $('.webfinger_form').submit(function(evt){
+    form = $(evt.currentTarget);
+    form.siblings('#loader').show();
+     $('#request_result li:first').hide();
+  });
+
+  // hotkeys
+  $(window).bind('keyup', 'ctrl+f', function(){
+    $("#q").focus();
+  });
+
+  $(window).bind('keyup', 'ctrl+e', function(){
+    EditPane.toggle();
+  });
 
 });//end document ready
 
@@ -87,36 +108,26 @@ $.fn.clearForm = function() {
     this.checked = false;
   else if (tag == 'select')
     this.selectedIndex = -1;
+  else if (this.name == 'photos[]')
+    this.value = '';
   $(this).blur();
   });
 };
 
-var video_active_container = null;
 
-function openVideo(type, videoid, link) {
-  var container = document.createElement('div'),
-      $container = $(container);
-  if(type == 'youtube.com') {
-    $container.html('<a href="http://www.youtube.com/watch?v='+videoid+'" target="_blank">Watch this video on Youtube</a><br><object width="640" height="385"><param name="movie" value="http://www.youtube.com/v/'+videoid+'?fs=1"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://www.youtube.com/v/'+videoid+'?fs=1" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="640" height="385"></embed></object>');
-  } else {
-    $container.html('Invalid videotype <i>'+type+'</i> (ID: '+videoid+')');
-  }
-  if(video_active_container != null) {
-    video_active_container.parentNode.removeChild(video_active_container);
-  }
-  video_active_container = container;
-  $container.hide();
-  link.parentNode.insertBefore(container, this.nextSibling);
-  $container.slideDown('fast', function() { });
-  link.onclick = function() { $container.slideToggle('fast', function() { } ); }
-}
+$(".make_profile_photo").live("click", function(evt){
 
-$(".make_profile_photo").live("click", function(){
+  evt.preventDefault();
+
   var $this = $(this),
-      $controls  = $this.closest(".controls"),
+      $controls = $this.closest(".photo_options"),
       user_id   = $controls.attr('data-actor');
       person_id = $controls.attr('data-actor_person');
       photo_url = $controls.attr('data-image_url');
+
+  $("img[data-person_id='"+ person_id +"']").each( function() {
+    $(this).fadeTo(200,0.3);
+  });
 
   $.ajax({
     type: "PUT",
@@ -124,6 +135,7 @@ $(".make_profile_photo").live("click", function(){
     data: {"person":{"profile":{ "image_url": photo_url }}},
     success: function(){
       $("img[data-person_id='"+ person_id +"']").each( function() {
+        $(this).fadeTo(200,1);
         this.src = photo_url;
       });
     }
@@ -137,3 +149,4 @@ $(".getting_started_box").live("click",function(evt){
         0
     },function(evt){ $(this).css('left', '1000px')});
 });
+

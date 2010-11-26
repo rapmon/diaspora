@@ -13,7 +13,7 @@ class RequestsController < ApplicationController
   def destroy
     if params[:accept]
       if params[:aspect_id]
-        @friend = current_user.accept_and_respond( params[:id], params[:aspect_id])
+        @contact = current_user.accept_and_respond( params[:id], params[:aspect_id])
         flash[:notice] = I18n.t 'requests.destroy.success'
         respond_with :location => current_user.aspect_by_id(params[:aspect_id])
       else
@@ -21,9 +21,9 @@ class RequestsController < ApplicationController
         respond_with :location => requests_url
       end
     else
-      current_user.ignore_friend_request params[:id]
+      current_user.ignore_contact_request params[:id]
       flash[:notice] = I18n.t 'requests.destroy.ignore'
-      respond_with :location => requests_url
+      head :ok
     end
   end
 
@@ -32,39 +32,25 @@ class RequestsController < ApplicationController
   end
 
  def create
-    aspect = current_user.aspect_by_id(params[:request][:aspect_id])
-    account = params[:request][:destination_url].strip  
-    begin 
-      finger = EMWebfinger.new(account)
-    
-      finger.on_person{ |person|
-      
-      if person.class == Person
-        rel_hash = {:friend => person}
-
-        Rails.logger.debug("Sending request: #{rel_hash}")
-
-        begin
-          @request = current_user.send_friend_request_to(rel_hash[:friend], aspect)
-        rescue Exception => e
-          Rails.logger.debug("error: #{e.message}")
-          flash[:error] = e.message
-        end
-      else
-        #socket to tell people this failed?
-      end
-      }
-
-    rescue Exception => e 
-      flash[:error] = e.message
-    end
-    
-    if params[:getting_started]
-      redirect_to getting_started_path(:step=>params[:getting_started])
-    else
-      flash[:notice] = I18n.t('requests.create.tried', :account => account) unless flash[:error]
-      respond_with :location => aspects_manage_path 
-      return
-    end    
+   aspect = current_user.aspect_by_id(params[:request][:into])
+   account = params[:request][:to].strip  
+   person = Person.by_account_identifier(account)
+   existing_request = Request.from(person).to(current_user.person).where(:sent => false).first if person
+   if existing_request
+     current_user.accept_and_respond(existing_request.id, aspect.id)
+     redirect_to :back
+   else
+     @request = Request.instantiate(:to => person,
+                                    :from => current_user.person,
+                                    :into => aspect)
+     if @request.save
+       current_user.dispatch_request(@request)
+       flash.now[:notice] = I18n.t('requests.create.sent')
+       redirect_to :back
+     else
+       flash.now[:error] = @request.errors.full_messages.join(', ')
+       redirect_to :back
+     end
+   end
   end
 end

@@ -24,9 +24,9 @@ describe CommentsController do
         :post_id     =>"#{@post.id}"}}
     }
 
-    context "on a post from a friend" do
+    context "on a post from a contact" do
       before do
-        friend_users(user, aspect, user2, aspect2)
+        connect_users(user, aspect, user2, aspect2)
         @post = user2.post :status_message, :message => 'GIANTS', :to => aspect2.id
       end
       it 'comments' do
@@ -53,7 +53,7 @@ describe CommentsController do
       it 'posts no comment' do
         user.should_receive(:comment).exactly(0).times
         post :create, comment_hash
-        response.code.should == '401'
+        response.code.should == '406'
       end
     end
   end

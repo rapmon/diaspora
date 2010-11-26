@@ -1,38 +1,58 @@
 -#   Copyright (c) 2010, Diaspora Inc.  This file is
 -#   licensed under the Affero General Public License version 3 or later.  See
 -#   the COPYRIGHT file.
-
+- content_for :head do
+  = include_javascripts :aspects
 
 %h3
-  Your aspects
+  = t('.your_aspects')
   .description
-    Tell Diaspora what different aspects of you are seen by different friends.  You can manage these later by clicking the manage tab on the top right.  Your aspects are unique to you, and not visible by others.
+    = t('.description')
 
-%h4
-  Aspect name
-  = form_for Aspect.new, :remote => true, :format => :json do |aspect|
-    = aspect.text_field :name, :style => "display:inline;"
-    = aspect.submit "Add"
+%h3
+  = t('.your_inviter')
 
-%ul.aspects
+%h3
+  %ul.dropzone
+    - if @requests.size < 1
+      %li=t('.no_requests')
+    - else
+      - for request in @requests
+        %li.person.request{:data=>{:guid=>request.id, :person_id=>request.from.id}}
+          = person_image_link(request.from)
+  .requests
+    %p= "#{t('.drag_to_add')} =>"
+
+
+%ul#aspect_list
   - for aspect in @aspects
-    %li{:style=>"position:relative;"}
-      = aspect
-      .friend_pictures.horizontal
-        - for friend in aspect.person_objects
-          = person_image_link(friend)
+    %li.aspect{:data=>{:guid=>aspect.id}}
 
-        = link_to (image_tag('add_friend_button.png', :title => "add to #{aspect}")), "#add_request_pane", :class => 'add_request_button'
+      .aspect_name
+        %span.edit_name_field
+          %h3{:contenteditable=>true}
+            = aspect.name
+          %span.tip click to edit
 
-        .fancybox_content
-          #add_request_pane
-            = render "requests/new_request", :aspect => aspect, :getting_started => 2
+        %ul.tools
+          %li!= remove_link(aspect)
 
-      = link_to "x", aspect_path(aspect), :method => :delete, :remote => true, :class => "delete right"
-
+      %ul.dropzone{:data=>{:aspect_id=>aspect.id}}
+        -for contact in aspect.contacts
+          %li.person{:data=>{:guid=>contact.person.id, :aspect_id=>aspect.id}}
+            .delete
+              .x
+                X
+              .circle
+            = person_image_link(contact.person)
+%h4
+  = t('.aspect_name')
+  = form_for Aspect.new do |aspect|
+    = aspect.text_field :name, :style => "display:inline;"
+    = aspect.submit t('.add')
 %br
 %br
 
 .submit_block
-  = link_to "Save and continue →", getting_started_path(:step => 3), :class => "button"
+  = link_to "#{t('users.getting_started.save_and_continue')} →", getting_started_path(:step => 3), :class => "button"
 

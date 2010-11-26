@@ -74,6 +74,13 @@ describe User do
       user.should_receive(:post_to_facebook).exactly(0).times
       user.post :status_message, :message => "hi", :to => "all"
     end
+
+
+    it 'should not socket a pending post' do 
+      sm = user.build_post(:status_message, :message => "your mom", :to => aspect.id, :pending => true)      
+      sm.should_not_receive(:socket_to_uid)
+      user.dispatch_post(sm, :to => aspect.id) 
+    end
   end
 
   describe '#post' do
@@ -105,9 +112,9 @@ describe User do
     let!(:post) { user.build_post :status_message, :message => "hey" }
 
     before do
-      friend_users(user, aspect, user2, aspect2)
-      friend_users(user, aspect, user3, aspect3)
-      friend_users(user, aspect1, user4, aspect4)
+      connect_users(user, aspect, user2, aspect2)
+      connect_users(user, aspect, user3, aspect3)
+      connect_users(user, aspect1, user4, aspect4)
       user.add_person_to_aspect(user2.person.id, aspect1.id)
       user.reload
     end
@@ -118,7 +125,7 @@ describe User do
         user.push_to_aspects(post, aspect.id)
       end
 
-      it 'should push a post to friends in all aspects' do
+      it 'should push a post to contacts in all aspects' do
         user.should_receive(:push_to_person).exactly(3).times
         user.push_to_aspects(post, :all)
       end

@@ -11,12 +11,16 @@ log/*
 public/stylesheets/application.css
 public/stylesheets/sessions.css
 public/stylesheets/ui.css
+spec/fixtures/users.yaml
 
 # Uploded files and local files
 public/uploads/*
+public/assets/*
 public/source.tar*
 tmp/**/*
+tmp/*
 db/*.sqlite3
+.redcar
 
 # Temporary files of every sort
 .DS_Store

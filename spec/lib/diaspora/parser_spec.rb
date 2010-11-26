@@ -25,7 +25,7 @@ describe Diaspora::Parser do
     end
 
     it 'should accept retractions' do
-      friend_users(user, aspect, user2, aspect2)
+      connect_users(user, aspect, user2, aspect2)
       message = user2.post(:status_message, :message => "cats", :to => aspect2.id)
       retraction = Retraction.for(message)
       xml = retraction.to_diaspora_xml
@@ -33,46 +33,53 @@ describe Diaspora::Parser do
       proc { user.receive xml, user2.person }.should change(StatusMessage, :count).by(-1)
     end
 
-    context "friending" do
+    context "connecting" do
 
     let(:good_request) { FakeHttpRequest.new(:success)}
       it "should create a new person upon getting a person request" do
-        new_person = Factory.build(:person) 
+        remote_user = Factory.create(:user)
+        new_person = remote_user.person
 
-        Person.should_receive(:by_account_identifier).and_return(new_person)
-        request = Request.instantiate(:to =>"http://www.google.com/", :from => new_person)
-        xml = request.to_diaspora_xml
-        user
+        request = Request.new(:to =>user.person, :from => new_person)
+        xml = remote_user.salmon(request).xml_for(user.person)
+        request.delete
+        request.from.delete
+        remote_user.delete
+        new_person.delete
 
-        lambda { user.receive xml, new_person }.should change(Person, :count).by(1)
+        Person.should_receive(:by_account_identifier).twice.and_return(new_person)
+
+        lambda { 
+          user.receive_salmon xml
+        }.should change(Person, :count).by(1)
       end
 
 
     end
 
     it "should activate the Person if I initiated a request to that url" do
-      user.send_friend_request_to(user2.person, aspect)
-      request = user2.reload.pending_requests.find_by_destination_url!(user2.receive_url)
+      user.send_contact_request_to(user2.person, aspect)
+      request = user2.reload.pending_requests.find_by_to_id!(user2.person.id)
       user2.accept_and_respond(request.id, aspect2.id)
       
       user.reload
       aspect.reload
       new_contact = user.contact_for(user2.person)
-      aspect.people.include?(new_contact).should be true
-      user.friends.include?(new_contact).should be true
+      aspect.contacts.include?(new_contact).should be true
+      user.contacts.include?(new_contact).should be true
     end
 
     it 'should process retraction for a person' do
-      friend_users(user, aspect, user2, aspect2)
+      connect_users(user, aspect, user2, aspect2)
       retraction = Retraction.for(user2)
       retraction_xml = retraction.to_diaspora_xml
 
       lambda { user.receive retraction_xml, user2.person }.should change {
-        aspect.reload.people.size }.by(-1)
+        aspect.reload.contacts.size }.by(-1)
     end
 
     it 'should marshal a profile for a person' do
-      friend_users(user, aspect, user2, aspect2)
+      connect_users(user, aspect, user2, aspect2)
       #Create person
       person = user2.person
       id = person.id

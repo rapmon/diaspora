@@ -1,0 +1,35 @@
+-#   Copyright (c) 2010, Diaspora Inc.  This file is
+-#   licensed under the Affero General Public License version 3 or later.  See
+-#   the COPYRIGHT file.
+
+%li.message{:data=>{:guid=>post.id}}
+
+  = person_image_link(post.person)
+
+  .content
+    .from
+      = link_to post.person.real_name, post.person
+
+      - if current_user.owns?(post)
+        .aspect
+          ➔
+          %ul
+            - if post.public?
+              %li= t('the_world')
+            - else
+              - for aspect in aspects.select{|a| a.post_ids.include?(post.id)}
+                %li= link_to aspect.name, aspect
+
+        .right
+          = render 'shared/reshare', :current_user => current_user, :post => post if post.is_a? StatusMessage
+          = link_to t('delete'), object_path(post), :confirm => t('are_you_sure'), :method => :delete, :remote => true, :class => "delete"
+
+    = render type_partial(post), :post => post
+
+    .info
+      %span.time= link_to(how_long_ago(post), object_path(post))
+
+      = comment_toggle(post.comments.count)
+
+    = render "comments/comments", :post => post, :hidden => (post.comments.count == 0)
+

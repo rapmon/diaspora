@@ -9,16 +9,35 @@ class StatusMessagesController < ApplicationController
   respond_to :json, :only => :show
 
   def create
+    photos = Photo.all(:id.in => [*params[:photos]], :diaspora_handle => current_user.person.diaspora_handle)
+
     public_flag = params[:status_message][:public]
     public_flag.to_s.match(/(true)/) ? public_flag = true : public_flag = false
     params[:status_message][:public] = public_flag 
+    @status_message = current_user.build_post(:status_message, params[:status_message])
 
-    status_message = current_user.build_post(:status_message, params[:status_message])
-    if status_message.save(:safe => true)
-      raise 'MongoMapper failed to catch a failed save' unless status_message.id
-      current_user.dispatch_post(status_message, :to => params[:status_message][:to])
+
+    if @status_message.save(:safe => true)
+      raise 'MongoMapper failed to catch a failed save' unless @status_message.id
+
+      @status_message.photos += photos unless photos.nil?
+      current_user.dispatch_post(@status_message, :to => params[:status_message][:to])
+
+      for photo in photos
+        current_user.dispatch_post(photo, :to => params[:status_message][:to])
+      end
+
+      respond_to do |format|
+        format.js{ render :json => { :post_id => @status_message.id,
+                                     :html => render_to_string(:partial => 'shared/stream_element', :locals => {:post => @status_message, :current_user => current_user})},
+                                     :status => 201 }
+        format.html{ respond_with @status_message }
+      end
+    else
+      respond_to do |format|
+        format.js{ render :status => 406 }
+      end
     end
-    render :nothing => true
   end
 
 

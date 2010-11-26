@@ -14,6 +14,28 @@ describe User do
     user.encryption_key.should_not be nil
   end
 
+  describe "#has_incoming_request_from" do
+    it "returns true if the user has an incoming request from the person" do
+      user2.send_contact_request_to(user.person, aspect2)
+
+      user.reload
+      user2.reload
+
+      user.has_incoming_request_from(user2.person).should be_true
+    end
+    it "returns false if the user does not have an incoming request from the person" do
+      user.has_incoming_request_from(user2.person).should be_false
+    end
+    it "returns false if the user has requested to be contacts with the person" do
+      user.send_contact_request_to(user2.person, aspect)
+
+      user.reload
+      user2.reload
+
+      user.has_incoming_request_from(user2.person).should be_false
+    end
+  end
+
   describe 'overwriting people' do
     it 'does not overwrite old users with factory' do
       pending "Why do you want to set ids directly? MONGOMAPPERRRRR!!!"
@@ -26,9 +48,9 @@ describe User do
                     :email => "ohai@example.com",
                     :password => "password",
                     :password_confirmation => "password",
-                    :person => 
-                      {:profile => 
-                        {:first_name => "O", 
+                    :person =>
+                      {:profile =>
+                        {:first_name => "O",
                          :last_name => "Hai"}
                       }
           }
@@ -105,12 +127,12 @@ describe User do
         user = Factory.build(:user, :username => "kittens;")
         user.should_not be_valid
       end
-      
+
       it "can be 32 characters long" do
         user = Factory.build(:user, :username => "hexagoooooooooooooooooooooooooon")
         user.should be_valid
       end
-      
+
       it "cannot be 33 characters" do
         user = Factory.build(:user, :username => "hexagooooooooooooooooooooooooooon")
         user.should_not be_valid
@@ -154,9 +176,9 @@ describe User do
                   :email => "ohai@example.com",
                   :password => "password",
                   :password_confirmation => "password",
-                  :person => 
-                    {:profile => 
-                      {:first_name => "O", 
+                  :person =>
+                    {:profile =>
+                      {:first_name => "O",
                        :last_name => "Hai"}
                     }
         }
@@ -206,10 +228,10 @@ describe User do
                   :email => "ohai@example.com",
                   :password => "password",
                   :password_confirmation => "password",
-                  :person => 
+                  :person =>
                     {:_id => person.id,
-                      :profile => 
-                      {:first_name => "O", 
+                      :profile =>
+                      {:first_name => "O",
                        :last_name => "Hai"}
                     }
         }
@@ -228,7 +250,7 @@ describe User do
   end
 
   context 'profiles' do
-    it 'should be able to update their profile and send it to their friends' do
+    it 'should be able to update their profile and send it to their contacts' do
       updated_profile = {
         :first_name => 'bob',
         :last_name => 'billytown',
@@ -245,8 +267,8 @@ describe User do
       user.aspects.include?(aspect).should == false
     end
 
-    it 'should not delete an aspect with friends' do
-      friend_users(user, aspect, user2, aspect2)
+    it 'should not delete an aspect with contacts' do
+      connect_users(user, aspect, user2, aspect2)
       aspect.reload
       proc { user.drop_aspect(aspect) }.should raise_error /Aspect not empty/
       user.aspects.include?(aspect).should == true
@@ -257,14 +279,14 @@ describe User do
     it 'sends a notification to aspects' do
       user.should_receive(:push_to_aspects).twice
       photo = user.post(:photo, :user_file => uploaded_photo, :caption => "hello", :to => aspect.id)
-      
+
       user.update_post(photo, :caption => 'hellp')
     end
   end
 
   describe 'account removal' do
-    it 'should unfriend everyone' do
-      user.should_receive(:unfriend_everyone)
+    it 'should disconnect everyone' do
+      user.should_receive(:disconnect_everyone)
       user.destroy
     end
 
@@ -294,19 +316,19 @@ describe User do
       end
     end
 
-    describe '#unfriend_everyone' do
+    describe '#disconnect_everyone' do
 
       it 'should send retractions to remote poeple' do
         user2.delete
-        user.activate_friend(user2.person, aspect)
+        user.activate_contact(user2.person, aspect)
 
-        user.should_receive(:unfriend).once
+        user.should_receive(:disconnect).once
         user.destroy
       end
 
-      it 'should unfriend local people' do
-        friend_users(user, aspect, user2, aspect2)
-        lambda {user.destroy}.should change{user2.reload.friends.count}.by(-1)
+      it 'should disconnect local people' do
+        connect_users(user, aspect, user2, aspect2)
+        lambda {user.destroy}.should change{user2.reload.contacts.count}.by(-1)
       end
     end
   end
